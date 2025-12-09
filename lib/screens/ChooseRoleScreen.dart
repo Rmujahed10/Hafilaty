@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-class SignupRoleScreen extends StatelessWidget {
-  const SignupRoleScreen({super.key});
+// تم تغيير اسم الكلاس ليتطابق مع اسم الملف (ChooseRoleScreen)
+class ChooseRoleScreen extends StatelessWidget {
+  const ChooseRoleScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +55,7 @@ class SignupRoleScreen extends StatelessWidget {
                       const Text(
                         "يرجى اختيار نوع الحساب للتسجيل",
                         style: TextStyle(
-                          color: Color(0xFF8BAA3C), // نفس الأخضر بالصورة
+                          color: Color(0xFF8BAA3C), // اللون الأخضر
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -67,21 +68,27 @@ class SignupRoleScreen extends StatelessWidget {
                       _roleButton(
                         title: "السائق",
                         icon: Icons.directions_bus,
-                        onTap: () {},
+                        onTap: () {
+                          // TODO: Navigate to Driver Signup Screen
+                        },
                       ),
                       const SizedBox(height: 20),
 
                       _roleButton(
                         title: "ولي الأمر",
                         icon: Icons.family_restroom,
-                        onTap: () {},
+                        onTap: () {
+                          // TODO: Navigate to Parent Signup Screen
+                        },
                       ),
                       const SizedBox(height: 20),
 
                       _roleButton(
                         title: "المشرف التعليمي",
                         icon: Icons.person_search,
-                        onTap: () {},
+                        onTap: () {
+                          // TODO: Navigate to Supervisor Signup Screen
+                        },
                       ),
 
                       const Spacer(),

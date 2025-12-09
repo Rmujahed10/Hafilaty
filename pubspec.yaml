@@ -31,11 +31,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-    # 1. CORE PACKAGE (Required for initialization)
-  firebase_core: ^2.24.2
-  
-  # 2. Add other Firebase services you need (Examples below)
-  firebase_auth: ^4.15.3      # For user authentication
+  firebase_core: ^2.24.2 # Check for the latest stable
+  firebase_auth: ^4.15.3 # Check for the latest stable
   cloud_firestore: ^4.13.4    # For the Firestore database
 
   # The following adds the Cupertino Icons font to your application.
