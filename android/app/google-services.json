@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "290002889120",
+    "project_id": "hafilaty-80caf",
+    "storage_bucket": "hafilaty-80caf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:290002889120:android:5d28ed47ee360b700f5cc5",
+        "android_client_info": {
+          "package_name": "com.example.hafilaty"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJ8-U9CbP1cA-Axgo9k9t0hUYnRQ8KQHw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
