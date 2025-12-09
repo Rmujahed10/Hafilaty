@@ -11,15 +11,14 @@ class HafilatyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Wrap MaterialApp in Directionality for proper RTL support (Arabic)
     return Directionality(
       textDirection: TextDirection.rtl,
       child: MaterialApp(
         title: 'Hafilaty',
         theme: ThemeData(
           primarySwatch: Colors.blue,
+          fontFamily: 'HafilatyArabic', 
         ),
-        // 2. Set your LoginScreen as the starting page
         home: const LoginScreen(), 
       ),
     );
