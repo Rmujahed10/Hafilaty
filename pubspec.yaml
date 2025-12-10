@@ -31,9 +31,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  firebase_core: ^2.24.2 # Check for the latest stable
-  firebase_auth: ^4.15.3 # Check for the latest stable
-  cloud_firestore: ^4.13.4    # For the Firestore database
+  firebase_auth: ^4.19.2 # A highly stable version that might avoid the internal error
+  firebase_core: ^2.28.0 # Ensure this is also a stable, recent version
+  cloud_firestore: ^4.17.0 # Ensure this is also compatible
   firebase_database: ^10.5.7
 
   # The following adds the Cupertino Icons font to your application.

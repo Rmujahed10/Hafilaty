@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
-import 'ParentRegistrationScreen.dart';
+import 'ParentRegistrationScreen.dart'; // We will reuse this screen for all roles for now
 
-// تم تغيير اسم الكلاس ليتطابق مع اسم الملف (ChooseRoleScreen)
 class ChooseRoleScreen extends StatelessWidget {
   const ChooseRoleScreen({super.key});
+
+  // Helper method for navigation
+  void _navigateToRegistration(BuildContext context, String roleKey) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        // The successRoute should point to your login screen or a welcome screen
+        builder: (context) => ParentRegistrationScreen(roleKey: roleKey, successRoute: '/login'),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,37 +75,25 @@ class ChooseRoleScreen extends StatelessWidget {
 
                       const SizedBox(height: 40),
 
-                      // ------- Buttons -------
+                      // ------- Buttons (Role Navigation) -------
                       _roleButton(
                         title: "السائق",
                         icon: Icons.directions_bus,
-                        onTap: () {
-                          // TODO: Navigate to Driver Signup Screen
-                        },
+                        onTap: () => _navigateToRegistration(context, 'driver'), // Pass 'driver' role
                       ),
                       const SizedBox(height: 20),
 
                       _roleButton(
                         title: "ولي الأمر",
                         icon: Icons.family_restroom,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ParentRegistrationScreen(roleKey: 'parent'),
-                            ),
-                          );
-                        },
+                        onTap: () => _navigateToRegistration(context, 'parent'), // Pass 'parent' role
                       ),
                       const SizedBox(height: 20),
 
                       _roleButton(
-                        title: "المشرف التعليمي",
+                        title: "المشرف التعليمي (Admin)",
                         icon: Icons.person_search,
-                        onTap: () {
-                          // TODO: Navigate to Supervisor Signup Screen
-                        },
+                        onTap: () => _navigateToRegistration(context, 'admin'), // Pass 'admin' role
                       ),
 
                       const Spacer(),

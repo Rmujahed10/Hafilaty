@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'ChooseRoleScreen.dart';
-
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
+// 💡 IMPORTANT: Switch to Cloud Firestore for role lookup
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+
+import 'ChooseRoleScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,17 +16,19 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false; // State variable for loading indicator
+  final _formKey = GlobalKey<FormState>(); // Added FormKey for validation
+  bool _isLoading = false; 
 
-// --- Crucial: Define DB keys and Routes ---
+// --- Crucial: Define DB keys and Routes (Ensure these match your main.dart routes)---
   static const String PARENT_KEY = 'parent';
   static const String DRIVER_KEY = 'driver';
-  static const String SUPERVISOR_KEY = 'supervisor';
+  // Renamed 'SUPERVISOR_KEY' to 'admin' to match the ChooseRoleScreen
+  static const String ADMIN_KEY = 'admin'; 
 
-  // Define Navigation Routes
+  // Define Navigation Routes (MUST match main.dart routes)
   static const String PARENT_HOME_ROUTE = '/parent_home'; 
   static const String DRIVER_HOME_ROUTE = '/driver_home'; 
-  static const String SUPERVISOR_HOME_ROUTE = '/supervisor_home';
+  static const String ADMIN_HOME_ROUTE = '/admin_home'; 
 
   @override
   void dispose() {
@@ -44,64 +47,78 @@ class _LoginScreenState extends State<LoginScreen> {
   // Helper function to convert phone number to a Firebase-compatible email
   // MUST match the format used during registration!
   String _convertToAuthEmail(String phone) {
-    // Cleans the phone number (removes +, spaces, etc.)
     final cleanedPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
     return '$cleanedPhone@hafilatyapp.com'; 
   }
 
   // ----------------------------------------------------
-  // CORE LOGIN AND ROLE CHECK LOGIC
+  // CORE ROLE CHECK AND NAVIGATION LOGIC (The 'route' function equivalent)
+  // ----------------------------------------------------
+  Future<void> _checkRoleAndNavigate(User user) async {
+    try {
+      // 1. Get the Document Snapshot from Firestore
+      DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (documentSnapshot.exists) {
+        final String? userRole = documentSnapshot.get('role');
+        String destinationRoute;
+
+        // 2. Determine the correct destination route
+        if (userRole == PARENT_KEY) {
+          destinationRoute = PARENT_HOME_ROUTE;
+        } else if (userRole == DRIVER_KEY) {
+          destinationRoute = DRIVER_HOME_ROUTE;
+        } else if (userRole == ADMIN_KEY) {
+          destinationRoute = ADMIN_HOME_ROUTE;
+        } else {
+          // Handle unknown role
+          _showError('خطأ: الدور ($userRole) غير معترف به.');
+          await FirebaseAuth.instance.signOut();
+          return;
+        }
+
+        // 3. Navigate to the appropriate home screen
+        Navigator.of(context).pushReplacementNamed(destinationRoute);
+
+      } else {
+        // Document doesn't exist (user registered via Auth but failed Firestore write)
+        _showError('خطأ: بيانات المستخدم غير مكتملة. يرجى مراجعة الإدارة.');
+        await FirebaseAuth.instance.signOut();
+      }
+    } catch (e) {
+      print('Error during role check: $e');
+      _showError('حدث خطأ في التحقق من دور المستخدم.');
+      await FirebaseAuth.instance.signOut();
+    }
+  }
+
+  // ----------------------------------------------------
+  // CORE LOGIN LOGIC (The 'signIn' function equivalent)
   // ----------------------------------------------------
   Future<void> _handleLogin() async {
-    final String phone = _phoneController.text.trim();
-    final String password = _passwordController.text.trim();
-
-    if (phone.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الرجاء إدخال رقم الجوال وكلمة المرور'))
-      );
+    if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    final String phone = _phoneController.text.trim();
+    final String password = _passwordController.text.trim();
     
-    // Show loading state
     setState(() => _isLoading = true);
     final String authEmail = _convertToAuthEmail(phone);
     
     try {
-      // 2. Authenticate the user
+      // 1. Authenticate the user (Sign In)
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: authEmail, password: password);
       
       final User? user = userCredential.user;
 
       if (user != null) {
-        final String uid = user.uid;
-        
-        // 4. Query Realtime Database for the role
-        final DatabaseReference userRef =
-            FirebaseDatabase.instance.ref().child('users').child(uid);
-        
-        final DataSnapshot snapshot = await userRef.get();
-
-        if (snapshot.exists && snapshot.value != null) {
-          final userData = snapshot.value as Map<dynamic, dynamic>;
-          final String? userRole = userData['role'] as String?;
-
-          // 6. Conditional Navigation based on the role (using static const keys)
-          if (userRole == PARENT_KEY) {
-            Navigator.of(context).pushReplacementNamed(PARENT_HOME_ROUTE);
-          } else if (userRole == DRIVER_KEY) {
-            Navigator.of(context).pushReplacementNamed(DRIVER_HOME_ROUTE);
-          } else if (userRole == SUPERVISOR_KEY) {
-            Navigator.of(context).pushReplacementNamed(SUPERVISOR_HOME_ROUTE);
-          } else {
-            _showError('خطأ: الدور غير معترف به.');
-            await FirebaseAuth.instance.signOut();
-          }
-        } else {
-          _showError('خطأ: بيانات المستخدم غير مكتملة. يرجى مراجعة الإدارة.');
-          await FirebaseAuth.instance.signOut();
-        }
+        // 2. If Auth is successful, proceed to check the role in Firestore
+        await _checkRoleAndNavigate(user);
       }
     } on FirebaseAuthException catch (e) {
       String message = 'حدث خطأ في تسجيل الدخول. الرجاء المحاولة مرة أخرى.';
@@ -109,6 +126,8 @@ class _LoginScreenState extends State<LoginScreen> {
         message = 'رقم الجوال أو كلمة المرور غير صحيحة.';
       } else if (e.code == 'invalid-email') {
          message = 'صيغة رقم الجوال غير صحيحة.';
+      } else if (e.code == 'too-many-requests') {
+         message = 'تم حظر هذا الحساب مؤقتًا بسبب محاولات متكررة فاشلة.';
       }
       _showError(message);
 
@@ -126,7 +145,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ----------------------------------------------------
+  // UI Building Methods
+  // ----------------------------------------------------
+
   Widget _buildBody() {
+    // ... (Your existing UI structure)
     return Stack(
       children: <Widget>[
         // الخلفية الزرقاء الداكنة في الأعلى
@@ -154,12 +178,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-                _buildLoginCard(),
+                Form( // Wrap the card content in a Form
+                  key: _formKey,
+                  child: _buildLoginCard(),
+                ),
                 
                 // ---------------- الانتقال لشاشة اختيار الدور ----------------
                 TextButton(
                   onPressed: () {
-                    // **تم تغيير اسم الشاشة هنا**
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -192,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 30.0),
               child: Image.asset(
-                'assets/hafilaty_logo.png',
+                'assets/hafilaty_logo.png', // Ensure this path is correct
                 height: 50,
               ),
             ),
@@ -201,6 +227,12 @@ class _LoginScreenState extends State<LoginScreen> {
               _phoneController,
               Icons.phone,
               TextInputType.phone,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'الرجاء إدخال رقم الجوال';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 20),
             _buildInputField(
@@ -209,11 +241,19 @@ class _LoginScreenState extends State<LoginScreen> {
               Icons.lock,
               TextInputType.text,
               isPassword: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'الرجاء إدخال كلمة المرور';
+                }
+                return null;
+              },
             ),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  // TODO: Implement forgot password logic
+                },
                 child: const Text('هل نسيت كلمة المرور؟'),
               ),
             ),
@@ -240,6 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
     IconData suffixIcon,
     TextInputType keyboardType, {
     bool isPassword = false,
+    String? Function(String?)? validator, // Added validator
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -259,6 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
           keyboardType: keyboardType,
           obscureText: isPassword,
           textAlign: TextAlign.right,
+          validator: validator, // Applied validator
           inputFormatters: keyboardType == TextInputType.phone
               ? [FilteringTextInputFormatter.digitsOnly]
               : null,
@@ -277,7 +319,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
- Widget _buildLoginButton() {
+  Widget _buildLoginButton() {
+    // (Existing button code)
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -292,7 +335,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       child: ElevatedButton(
-        // The button is disabled while _isLoading is true
         onPressed: _isLoading ? null : _handleLogin,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,

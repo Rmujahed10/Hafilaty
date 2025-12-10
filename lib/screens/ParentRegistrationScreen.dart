@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Needed for FilteringTextInputFormatter
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
+// 💡 IMPORTANT: Switched from 'firebase_database' to 'cloud_firestore'
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 
-// Helper function (MUST match the one in LoginScreen.dart)
+// NOTE: This should ideally be in a separate utility file or the Login file
 String _convertToAuthEmail(String phone) {
   // Cleans the phone number (removes +, spaces, etc.)
   final cleanedPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
+  // Using a unique domain to avoid conflicts with actual emails
   return '$cleanedPhone@hafilatyapp.com'; 
 }
 
@@ -17,7 +19,15 @@ class ParentRegistrationScreen extends StatefulWidget {
   // CRUCIAL: Holds the role key passed from ChooseRoleScreen (e.g., 'parent')
   final String roleKey; 
 
-  const ParentRegistrationScreen({super.key, required this.roleKey});
+  // New optional parameter for the success navigation route
+  final String successRoute; 
+
+  const ParentRegistrationScreen({
+    super.key, 
+    required this.roleKey, 
+    // Default success route (adjust as needed in your main.dart)
+    this.successRoute = '/login', 
+  });
 
   @override
   State<ParentRegistrationScreen> createState() => _ParentRegistrationScreenState();
@@ -25,6 +35,7 @@ class ParentRegistrationScreen extends StatefulWidget {
 
 class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
   // 2. TEXT EDITING CONTROLLERS
+  final _formKey = GlobalKey<FormState>(); // Added a form key for full validation control
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _idController = TextEditingController();
@@ -57,15 +68,17 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
   // -----------------------------------------------------------------
   // 3. CORE REGISTRATION LOGIC
   // -----------------------------------------------------------------
+
   Future<void> _handleRegistration() async {
-    // Simple Input validation
+    if (!_formKey.currentState!.validate()) {
+      _showError('الرجاء التأكد من تعبئة جميع الحقول بشكل صحيح.');
+      return;
+    }
+    
+    // Additional manual check for password match
     if (_passwordController.text != _confirmPasswordController.text) {
       _showError('كلمة المرور وتأكيد كلمة المرور غير متطابقان.');
       return;
-    }
-    if (_phoneController.text.isEmpty || _passwordController.text.isEmpty || _firstNameController.text.isEmpty) {
-        _showError('الرجاء تعبئة الحقول المطلوبة.');
-        return;
     }
 
     setState(() => _isLoading = true);
@@ -73,23 +86,46 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
     final String password = _passwordController.text.trim();
     final String authEmail = _convertToAuthEmail(phone);
     
+    User? user; 
+
+    // --- PHASE 1: FIREBASE AUTHENTICATION ---
     try {
-      // A. Create the user in Firebase Authentication
       final UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: authEmail, password: password);
       
-      final User? user = userCredential.user;
+      user = userCredential.user;
+      
+    } on FirebaseAuthException catch (e) {
+      String message = 'فشل التسجيل. يرجى التأكد من كلمة المرور (6 أحرف على الأقل).';
+      if (e.code == 'email-already-in-use') {
+        message = 'رقم الجوال مسجل بالفعل. يرجى تسجيل الدخول.';
+      } else {
+        debugPrint('FirebaseAuth Error: ${e.code} - ${e.message}'); 
+      }
+      _showError(message);
+      setState(() => _isLoading = false);
+      return; 
+    } catch (e) {
+      debugPrint('Unexpected error during Auth phase: $e');
+      _showError('حدث خطأ غير متوقع أثناء المصادقة.');
+      setState(() => _isLoading = false);
+      return;
+    }
 
-      if (user != null) {
-        final String uid = user.uid;
+    // --- PHASE 2: CLOUD FIRESTORE WRITE ---
+    if (user != null) {
+      final String uid = user.uid;
+      
+      try {
+        // Reference to the 'users' collection
+        final DocumentReference userDocRef =
+            FirebaseFirestore.instance.collection('users').doc(uid);
         
-        // B. Save User Data and ROLE to Firebase Realtime Database
-        final DatabaseReference userRef =
-            FirebaseDatabase.instance.ref().child('users').child(uid);
-        
-        await userRef.set({
+        // Data map for Parent role
+        Map<String, dynamic> userData = {
+            'uid': uid,
+            'role': widget.roleKey, // Saves the role (e.g., 'parent')
             'phone': phone,
-            'role': widget.roleKey, // Saves the role ('parent')
             'firstName': _firstNameController.text.trim(),
             'lastName': _lastNameController.text.trim(),
             'nationalId': _idController.text.trim(),
@@ -97,28 +133,37 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
             'district': _districtController.text.trim(),
             'street': _streetController.text.trim(),
             'email': _emailController.text.trim(), 
-            'createdAt': ServerValue.timestamp,
-        });
+            // Use FieldValue.serverTimestamp() for Firestore
+            'createdAt': FieldValue.serverTimestamp(), 
+            // NOTE: You would add other role-specific fields here for Driver/Admin
+        };
 
-        // Success: Navigate to the home screen and clear the navigation stack
+        await userDocRef.set(userData);
+
+        // SUCCESS: Firestore write completed
         ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('تم التسجيل بنجاح! يتم نقلك إلى الشاشة الرئيسية.'))
+             const SnackBar(content: Text('تم التسجيل بنجاح! يرجى تسجيل الدخول.'))
         );
-        // Navigate to the role-specific home route (e.g., /parent_home)
-        Navigator.of(context).pushNamedAndRemoveUntil('/${widget.roleKey}_home', (Route<dynamic> route) => false);
+        
+        // Navigate to the login screen or a successful registration page
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          widget.successRoute, 
+          (Route<dynamic> route) => false,
+        );
+        
+      } on FirebaseException catch (e) {
+        // Catch Firestore-specific write errors (e.g., permission errors)
+        debugPrint('Firestore write failed for UID $uid: ${e.code} - ${e.message}');
+        _showError('تم إنشاء الحساب ولكن فشل حفظ البيانات. يرجى المحاولة مرة أخرى.');
+        
+        // CRITICAL STEP: Clean up the user created in Auth if DB write failed
+        await user.delete(); 
+        await FirebaseAuth.instance.signOut(); 
+        
       }
-    } on FirebaseAuthException catch (e) {
-      String message = 'فشل التسجيل. يرجى التأكد من كلمة المرور (6 أحرف على الأقل).';
-      if (e.code == 'email-already-in-use') {
-        message = 'رقم الجوال مسجل بالفعل. يرجى تسجيل الدخول.';
-      } 
-      _showError(message);
-    } catch (e) {
-      print('Unexpected error during registration: $e');
-      _showError('حدث خطأ غير متوقع أثناء التسجيل.');
-    } finally {
-      setState(() => _isLoading = false);
     }
+    
+    setState(() => _isLoading = false);
   }
 
   void _showError(String message) {
@@ -137,6 +182,7 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     bool isPassword = false,
+    String? Function(String?)? validator, // Added validator
     IconData? roleIcon, 
   }) {
     // 1. التسمية (الاسم الأول، رقم الهوية، إلخ)
@@ -157,10 +203,12 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
 
         // 2. حقل الإدخال نفسه
         TextFormField(
+          key: ValueKey(labelText), // Added Key for unique identification
           controller: controller, // <--- CONTROLLER ASSIGNED
           obscureText: isPassword,
           keyboardType: keyboardType,
           textAlign: TextAlign.right,
+          validator: validator, // <--- VALIDATOR ASSIGNED
           // Restrict phone input to digits only
           inputFormatters: keyboardType == TextInputType.phone
               ? [FilteringTextInputFormatter.digitsOnly]
@@ -168,7 +216,7 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
           decoration: InputDecoration(
             hintText: 'أدخل $labelText', // Simplified hint text
             hintStyle: const TextStyle(color: Colors.grey),
-
+            
             // *الأيقونة في اليمين (prefixIcon في اتجاه RTL)*
             prefixIcon: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15.0),
@@ -218,8 +266,8 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
           backgroundColor: const Color(0xFF0D47A1),
           foregroundColor: Colors.white,
           title: Text(
-            // Use the role key to dynamically set the title
-            'إنشاء حساب ${widget.roleKey == 'parent' ? 'ولي أمر' : widget.roleKey}', 
+            // Dynamically show the role in the title
+            'إنشاء حساب ${widget.roleKey == 'parent' ? 'ولي أمر' : widget.roleKey == 'driver' ? 'سائق' : 'مشرف'}', 
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
@@ -234,118 +282,149 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
             ),
           ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              // حقل الاسم الأول
-              _buildLabeledTextField(
-                labelText: 'الاسم الأول',
-                controller: _firstNameController,
-                icon: Icons.person_outline,
-                roleIcon: Icons.group,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل الاسم الأخير
-              _buildLabeledTextField(
-                labelText: 'الاسم الأخير',
-                controller: _lastNameController,
-                icon: Icons.person_outline,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل رقم الهوية
-              _buildLabeledTextField(
-                labelText: 'رقم الهوية',
-                controller: _idController,
-                icon: Icons.credit_card,
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل المدينة
-              _buildLabeledTextField(
-                labelText: 'المدينة',
-                controller: _cityController,
-                icon: Icons.location_city_outlined,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل الحي
-              _buildLabeledTextField(
-                labelText: 'الحي',
-                controller: _districtController,
-                icon: Icons.apartment_outlined,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل الشارع
-              _buildLabeledTextField(
-                labelText: 'الشارع',
-                controller: _streetController,
-                icon: Icons.map_outlined,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل رقم الجوال
-              _buildLabeledTextField(
-                labelText: 'رقم الجوال',
-                controller: _phoneController,
-                icon: Icons.phone_android_outlined,
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل البريد الإلكتروني
-              _buildLabeledTextField(
-                labelText: 'البريد الإلكتروني',
-                controller: _emailController,
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-
-              // حقل كلمة المرور
-              _buildLabeledTextField(
-                labelText: 'كلمة المرور',
-                controller: _passwordController,
-                icon: Icons.lock_outline,
-                isPassword: true,
-              ),
-              const SizedBox(height: 30),
-
-              // حقل تأكيد كلمة المرور
-              _buildLabeledTextField(
-                labelText: 'تأكيد كلمة المرور',
-                controller: _confirmPasswordController,
-                icon: Icons.lock_outline,
-                isPassword: true,
-              ),
-              const SizedBox(height: 30),
-
-              // زر التسجيل (باستخدام حالة التحميل)
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleRegistration, // Disable when loading
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8BAA3C),
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+        body: Form( // Wrap the form in a Form widget
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                // حقل الاسم الأول
+                _buildLabeledTextField(
+                  labelText: 'الاسم الأول',
+                  controller: _firstNameController,
+                  icon: Icons.person_outline,
+                  roleIcon: Icons.group,
+                  validator: (value) => value!.isEmpty ? 'الرجاء إدخال الاسم الأول' : null,
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'تسجيل الآن',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                const SizedBox(height: 20),
+
+                // حقل الاسم الأخير
+                _buildLabeledTextField(
+                  labelText: 'الاسم الأخير',
+                  controller: _lastNameController,
+                  icon: Icons.person_outline,
+                  validator: (value) => value!.isEmpty ? 'الرجاء إدخال الاسم الأخير' : null,
+                ),
+                const SizedBox(height: 20),
+
+                // حقل رقم الهوية
+                _buildLabeledTextField(
+                  labelText: 'رقم الهوية',
+                  controller: _idController,
+                  icon: Icons.credit_card,
+                  keyboardType: TextInputType.number,
+                  validator: (value) => value!.isEmpty ? 'الرجاء إدخال رقم الهوية' : null,
+                ),
+                const SizedBox(height: 20),
+
+                // حقل المدينة
+                _buildLabeledTextField(
+                  labelText: 'المدينة',
+                  controller: _cityController,
+                  icon: Icons.location_city_outlined,
+                  validator: (value) => value!.isEmpty ? 'الرجاء إدخال المدينة' : null,
+                ),
+                const SizedBox(height: 20),
+
+                // حقل الحي
+                _buildLabeledTextField(
+                  labelText: 'الحي',
+                  controller: _districtController,
+                  icon: Icons.apartment_outlined,
+                  validator: (value) => value!.isEmpty ? 'الرجاء إدخال الحي' : null,
+                ),
+                const SizedBox(height: 20),
+
+                // حقل الشارع
+                _buildLabeledTextField(
+                  labelText: 'الشارع',
+                  controller: _streetController,
+                  icon: Icons.map_outlined,
+                  validator: (value) => value!.isEmpty ? 'الرجاء إدخال الشارع' : null,
+                ),
+                const SizedBox(height: 20),
+
+                // حقل رقم الجوال
+                _buildLabeledTextField(
+                  labelText: 'رقم الجوال',
+                  controller: _phoneController,
+                  icon: Icons.phone_android_outlined,
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value!.isEmpty) return 'الرجاء إدخال رقم الجوال';
+                    if (value.length < 9) return 'رقم الجوال قصير جداً'; // Basic length check
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // حقل البريد الإلكتروني (جعله اختيارياً، لكن يفضل إدخاله)
+                _buildLabeledTextField(
+                  labelText: 'البريد الإلكتروني (اختياري)',
+                  controller: _emailController,
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                  // Simplified optional email validation
+                  validator: (value) {
+                    if (value!.isNotEmpty && !RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
+                      return 'أدخل بريد إلكتروني صحيح';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // حقل كلمة المرور
+                _buildLabeledTextField(
+                  labelText: 'كلمة المرور',
+                  controller: _passwordController,
+                  icon: Icons.lock_outline,
+                  isPassword: true,
+                  validator: (value) {
+                    if (value!.isEmpty) return 'الرجاء إدخال كلمة المرور';
+                    if (value.length < 6) return 'يجب أن تكون كلمة المرور 6 أحرف على الأقل';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 30),
+
+                // حقل تأكيد كلمة المرور
+                _buildLabeledTextField(
+                  labelText: 'تأكيد كلمة المرور',
+                  controller: _confirmPasswordController,
+                  icon: Icons.lock_outline,
+                  isPassword: true,
+                  validator: (value) {
+                    if (value!.isEmpty) return 'الرجاء تأكيد كلمة المرور';
+                    if (value != _passwordController.text) return 'كلمة المرور غير متطابقة';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 30),
+
+                // زر التسجيل (باستخدام حالة التحميل)
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _handleRegistration, 
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8BAA3C),
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'تسجيل الآن',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
