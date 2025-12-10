@@ -12,13 +12,13 @@ class AdminHomeScreen extends StatelessWidget {
           textDirection: TextDirection.rtl,
           child: AppBar(
             title: const Text('الصفحة الرئيسية admin '),
-            backgroundColor: const Color(0xFF0D47A1),
+            backgroundColor: const Color(0xFF0D1B36),
             foregroundColor: Colors.white,
           ),
         ),
       ),
       body: const Center(
-        child: Text('محتوى ولي الأمر هنا (قيد الإنشاء)'),
+        child: Text('المحتوى (قيد الإنشاء)'),
       ),
     );
   }

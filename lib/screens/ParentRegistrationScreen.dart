@@ -225,7 +225,7 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
 
             // *أيقونة الدور (roleIcon) على أقصى اليمين*
             suffixIcon: roleIcon != null
-                ? Icon(roleIcon, color: const Color(0xFF0D47A1))
+                ? Icon(roleIcon, color: const Color(0xFF0D1B36))
                 : null,
 
             border: OutlineInputBorder(
@@ -239,7 +239,7 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10.0),
               borderSide: const BorderSide(
-                color: Color(0xFF0D47A1),
+                color: Color(0xFF0D1B36),
                 width: 2.0,
               ),
             ),
@@ -263,7 +263,7 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
 
         // *AppBar مع سهم الرجوع لليسار*
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0D47A1),
+          backgroundColor: const Color(0xFF0D1B36),
           foregroundColor: Colors.white,
           title: Text(
             // Dynamically show the role in the title
@@ -271,16 +271,22 @@ class _ParentRegistrationScreenState extends State<ParentRegistrationScreen> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
+          
+  leading: const Padding( 
+            padding: EdgeInsets.symmetric(horizontal: 16.0), 
+          child: Icon(Icons.language), 
           ),
-          actions: const [
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Icon(Icons.language),
-            ),
-          ],
+          
+          actions: [ 
+            IconButton( 
+              icon: const Icon( 
+                Icons.arrow_forward, 
+                color: Colors.white, 
+                ),
+                onPressed: () => Navigator.pop(context), 
+                ), 
+                ],
+
         ),
         body: Form( // Wrap the form in a Form widget
           key: _formKey,

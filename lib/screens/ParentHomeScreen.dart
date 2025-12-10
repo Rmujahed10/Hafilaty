@@ -12,7 +12,7 @@ class ParentHomeScreen extends StatelessWidget {
           textDirection: TextDirection.rtl,
           child: AppBar(
             title: const Text('الصفحة الرئيسية لولي الأمر'),
-            backgroundColor: const Color(0xFF0D47A1),
+            backgroundColor: const Color(0xFF0D1B36),
             foregroundColor: Colors.white,
           ),
         ),

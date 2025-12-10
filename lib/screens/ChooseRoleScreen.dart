@@ -21,7 +21,7 @@ class ChooseRoleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A2F5A), // الأزرق الغامق العلوي
+      backgroundColor: const Color(0xFF0D1B36), // الأزرق الغامق العلوي
       body: SafeArea(
         child: Column(
           children: [
