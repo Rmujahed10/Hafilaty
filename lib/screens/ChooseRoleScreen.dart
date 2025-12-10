@@ -3,6 +3,10 @@ import 'ParentRegistrationScreen.dart';
 import 'DriverRegistrationScreen.dart';
 import 'AdminRegistrationScreen.dart'; // We will reuse this screen for all roles for now
 
+// --- Color definitions from the user's latest input ---
+const Color _kPrimaryColorInput = Color(0xFF0D1B36); // The dark blue
+const Color _kAccentColorInput = Color(0xFF8BAA3C); // The green accent
+
 class ChooseRoleScreen extends StatelessWidget {
   const ChooseRoleScreen({super.key});
 
@@ -21,7 +25,7 @@ class ChooseRoleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1B36), // الأزرق الغامق العلوي
+      backgroundColor: _kPrimaryColorInput, // Using 0xFF0D1B36
       body: SafeArea(
         child: Column(
           children: [
@@ -69,7 +73,7 @@ class ChooseRoleScreen extends StatelessWidget {
                       const Text(
                         "يرجى اختيار نوع الحساب للتسجيل",
                         style: TextStyle(
-                          color: Color(0xFF8BAA3C), // اللون الأخضر
+                          color: _kAccentColorInput, // Using 0xFF8BAA3C
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -139,7 +143,7 @@ class ChooseRoleScreen extends StatelessWidget {
     );
   }
 
-  // ------- Custom Button Widget -------
+  // ------- Custom Button Widget (MODIFIED for vertical, centered layout) -------
   Widget _roleButton({
     required String title,
     required IconData icon,
@@ -148,7 +152,9 @@ class ChooseRoleScreen extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        width: double.infinity,
+        // Increased vertical padding for the vertical layout
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14), 
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade300),
@@ -161,17 +167,26 @@ class ChooseRoleScreen extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column( // *** CHANGED from Row to Column ***
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min, // Allows the Column to size itself based on content
           children: [
-            Icon(icon, color: Colors.black54),
-            const SizedBox(width: 10),
+            // Icon
+            Icon(
+              icon,
+              color: _kAccentColorInput, // Color preserved: 0xFF8BAA3C
+              size: 30, // Increased size for visibility
+            ),
+            const SizedBox(height: 8), // Space between icon and text
+            
+            // Text
             Text(
               title,
+              textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 16,
-                color: Colors.black87,
-                fontWeight: FontWeight.w600,
+                fontSize: 18, // Increased size
+                color: _kPrimaryColorInput, // Color preserved: 0xFF0D1B36
+                fontWeight: FontWeight.bold, // Increased weight for focus
               ),
             ),
           ],

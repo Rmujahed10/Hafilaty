@@ -6,6 +6,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'ChooseRoleScreen.dart';
 
+// --- Color Constants (Maintaining original color values from your provided code) ---
+const Color _kDarkBlue = Color(0xFF0D1B36);
+const Color _kGreenAccent = Color(0xFF6A994E);
+
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -156,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // الخلفية الزرقاء الداكنة في الأعلى
         Container(
           height: MediaQuery.of(context).size.height * 0.4,
-          color: const Color(0xFF0D1B36),
+          color: _kDarkBlue, // 0xFF0D1B36
         ),
         
         // محتوى تسجيل الدخول (Card)
@@ -195,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   child: const Text(
                     'تسجيل حساب جديد',
-                    style: TextStyle(color: Color(0xFF0D1B36)),
+                    style: TextStyle(color: _kDarkBlue), // 0xFF0D1B36
                   ),
                 ),
               ],
@@ -219,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.only(bottom: 30.0),
               child: Image.asset(
                 'assets/hafilaty_logo.png', // Ensure this path is correct
-                height: 50,
+                height: 100, // <-- MODIFIED: Increased logo size from 50 to 80
               ),
             ),
             _buildInputField(
@@ -290,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Text(
             label,
             style: const TextStyle(
-              color: Color(0xFF6A994E),
+              color: _kGreenAccent, // 0xFF6A994E
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -327,8 +332,8 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(30),
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF0D1B36),
-            Color(0xFF6A994E),
+            _kDarkBlue, // 0xFF0D1B36
+            _kGreenAccent, // 0xFF6A994E
           ],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
