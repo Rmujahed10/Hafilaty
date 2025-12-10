@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ParentRegistrationScreen.dart';
 
 // تم تغيير اسم الكلاس ليتطابق مع اسم الملف (ChooseRoleScreen)
 class ChooseRoleScreen extends StatelessWidget {
@@ -78,7 +79,13 @@ class ChooseRoleScreen extends StatelessWidget {
                         title: "ولي الأمر",
                         icon: Icons.family_restroom,
                         onTap: () {
-                          // TODO: Navigate to Parent Signup Screen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  ParentRegistrationScreen(roleKey: 'parent'),
+                            ),
+                          );
                         },
                       ),
                       const SizedBox(height: 20),
