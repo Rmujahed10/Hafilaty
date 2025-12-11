@@ -7,9 +7,7 @@ import 'screens/LoginScreen.dart';
 import 'screens/ChooseRoleScreen.dart';
 
 // Import your Placeholder Home Screens
-import 'screens/ParentHomeScreen.dart'; 
-import 'screens/DriverHomeScreen.dart'; 
-import 'screens/AdminHomeScreen.dart';   
+import 'screens/RoleHomeScreen.dart'; 
 
 // --- 1. Define the Initializer/Future ---
 // You will likely check if a user is logged in here later.
@@ -124,11 +122,13 @@ class HafilatyApp extends StatelessWidget {
         routes: {
           '/login': (context) => const LoginScreen(),
           '/choose_role': (context) => const ChooseRoleScreen(),
+          '/role_home': (context) => const RoleHomeScreen(),
+
           
           // Role-specific Home Screens (Now using placeholders)
-          '/parent_home': (context) => const ParentHomeScreen(),
-          '/driver_home': (context) => const DriverHomeScreen(),
-          '/admin_home': (context) => const AdminHomeScreen(),
+          '/parent_home': (context) => const RoleHomeScreen(),
+          '/driver_home': (context) => const RoleHomeScreen(),
+          '/admin_home': (context) => const RoleHomeScreen(),
         },
       ),
     );
