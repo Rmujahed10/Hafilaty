@@ -330,9 +330,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 children: [
                   // Back Button (Automatically flips in RTL)
                   Align(
-                    alignment: Alignment.centerRight, // RTL: Start = Right
+                    alignment: Alignment.centerLeft, // RTL: Start = Right
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      icon: const Icon(Icons.arrow_forward, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),

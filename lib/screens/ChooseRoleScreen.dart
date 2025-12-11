@@ -34,6 +34,19 @@ class ChooseRoleScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     // SAME ARROW STYLE + ALWAYS LEFT
+
+                    const Spacer(),
+
+                    const Text(
+                      "تسجيل حساب جديد",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const Spacer(),
                     Directionality(
                       textDirection: TextDirection.ltr,
                       child: IconButton(
@@ -49,19 +62,6 @@ class ChooseRoleScreen extends StatelessWidget {
                         },
                       ),
                     ),
-
-                    const Spacer(),
-
-                    const Text(
-                      "تسجيل حساب جديد",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const Spacer(),
                   ],
                 ),
               ),

@@ -221,7 +221,7 @@ Future<void> _deleteAccount(BuildContext context) async {
                             label: "تعديل الملف الشخصي",
                             icon: Icons.edit,
                             onTap: () => Navigator.pushNamed(
-                                context, "/EditAccountScreen"),
+                                context, "/edit_profile"),
                           ),
 
                           _menuButton(
@@ -305,8 +305,11 @@ Future<void> _deleteAccount(BuildContext context) async {
                   ),
                 ),
                 const Spacer(),
-                const Icon(Icons.arrow_back_ios,
-                    size: 18, color: Colors.black54),
+                const Icon(
+  Icons.arrow_forward_ios, // ⬅️ يصير سهم "تقدم" مناسب لـ RTL
+  size: 18,
+  color: Colors.black54,
+),
               ],
             ),
           ),
@@ -334,19 +337,25 @@ Future<void> _deleteAccount(BuildContext context) async {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 22),
-                const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                )
-              ],
-            ),
+  mainAxisAlignment: MainAxisAlignment.center,
+  children: [
+    Text(
+      label,
+      style: const TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    const SizedBox(width: 10),
+
+    // 🔥 الآيقونة على اليسار دائماً
+    Icon(
+      icon,
+      size: 22,
+      textDirection: TextDirection.ltr,
+    ),
+  ],
+),
           ),
         ),
       ),
