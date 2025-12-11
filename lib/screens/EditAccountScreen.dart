@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// --- IMPORT YOUR VALIDATOR LOGIC HERE ---
+// Make sure 'hafilaty' matches the name in your pubspec.yaml
+import 'package:hafilaty/utils/validators.dart';
+
+// --- Constants ---
+const Color kHeaderColor = Color(0xFF0D1B36); // Dark Blue
+const Color kAccentColor = Color(0xFF8BAA3C); // Green
+const Color kFieldBgColor = Color(0xFFF9FFF4); // Light Green Background
 
 class EditAccountScreen extends StatefulWidget {
   const EditAccountScreen({super.key});
@@ -13,7 +22,7 @@ class EditAccountScreen extends StatefulWidget {
 class _EditAccountScreenState extends State<EditAccountScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers مشتركة
+  // --- Controllers ---
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _idController = TextEditingController();
@@ -23,11 +32,11 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
-  // للسائق
+  // Driver Specific
   final _licenseController = TextEditingController();
   final _birthDateController = TextEditingController();
 
-  // للمشرف
+  // Admin Specific
   final _schoolController = TextEditingController();
 
   bool _isLoading = true;
@@ -56,14 +65,39 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     super.dispose();
   }
 
+  // --- Date Picker Logic ---
+  Future<void> _pickDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(1990),
+      firstDate: DateTime(1950),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: kAccentColor,
+              onPrimary: Colors.white,
+              onSurface: kHeaderColor,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _birthDateController.text = "${picked.year}-${picked.month}-${picked.day}";
+      });
+    }
+  }
+
+  // --- Load Data ---
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        // ما فيه مستخدم مسجل دخول
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لم يتم العثور على مستخدم مسجل الدخول.')),
-        );
         setState(() => _isLoading = false);
         return;
       }
@@ -74,9 +108,6 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
           .get();
 
       if (!doc.exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لم يتم العثور على بيانات الحساب.')),
-        );
         setState(() => _isLoading = false);
         return;
       }
@@ -105,13 +136,11 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
       });
     } catch (e) {
       debugPrint('Error loading user data: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ أثناء تحميل البيانات.')),
-      );
       setState(() => _isLoading = false);
     }
   }
 
+  // --- Update Data ---
   Future<void> _updateUserData() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -152,6 +181,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
           .doc(user.uid)
           .update(updatedData);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم تحديث البيانات بنجاح.')),
       );
@@ -165,13 +195,14 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     setState(() => _isUpdating = false);
   }
 
-  // ويدجيت لحقل ثابت زي تصميمك (Label يمين + Box أخضر فاتح)
+  // --- Enhanced Field Widget ---
   Widget _buildProfileField({
     required String label,
     required TextEditingController controller,
-    TextInputType keyboardType = TextInputType.text,
-    bool enabled = true,
-    String? Function(String?)? validator,
+    bool isNumber = false,   
+    bool isReadOnly = false, 
+    VoidCallback? onTap,     
+    String? hint,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -181,7 +212,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
           child: Text(
             '$label :',
             style: const TextStyle(
-              color: Color(0xFF8BAA3C),
+              color: kAccentColor,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -189,26 +220,70 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         const SizedBox(height: 4),
         TextFormField(
           controller: controller,
-          keyboardType: keyboardType,
           textAlign: TextAlign.right,
-          validator: validator,
-          enabled: enabled,
+          
+          // --- Interaction Logic ---
+          readOnly: isReadOnly,
+          onTap: onTap,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          
+          // --- Keyboard Logic ---
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          maxLength: isNumber ? 10 : null, // Limit input length
+          inputFormatters: isNumber
+              ? [FilteringTextInputFormatter.digitsOnly] 
+              : [],
+
+          // --- MODIFIED VALIDATION LOGIC ---
+          validator: (v) {
+            // 1. Use the tested logic for numbers (ID, Phone, License)
+            if (isNumber) {
+              return Validators.validateTenDigitNumber(v, label);
+            }
+            
+            // 2. Use the tested logic for email
+            if (label.contains("البريد")) {
+              return Validators.validateEmail(v);
+            }
+            
+            // 3. Fallback for generic text fields
+            if (v == null || v.isEmpty) return '$label مطلوب';
+            
+            return null;
+          },
+          // ---------------------------------
+
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFFF9FFF4), // خلفية خفيفة
+            fillColor: kFieldBgColor,
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            
+            // Show counter for numbers only
+            counterText: isNumber ? null : "",
+
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: const BorderSide(
-                color: Color(0xFF8BAA3C), // نفس الأخضر في الصورة
+                color: kAccentColor,
                 width: 1.0,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: const BorderSide(
-                color: Color(0xFF8BAA3C),
+                color: kAccentColor,
                 width: 2.0,
               ),
+            ),
+            // Show error border in red if invalid
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: Colors.red, width: 1.0),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: Colors.red, width: 2.0),
             ),
             contentPadding:
                 const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
@@ -224,41 +299,35 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0D1B36),
+        backgroundColor: kHeaderColor,
         body: SafeArea(
           child: Column(
             children: [
-              // AppBar مشابه للصورة
+              // --- Header ---
               Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  child: Row(
-    children: [
-      // ← سهم الرجوع (يسار)
-       // أيقونة اللغة (يمين)
-      const Icon(Icons.language, color: Colors.white),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.language, color: Colors.white),
+                    const Spacer(),
+                    const Text(
+                      'تعديل معلومات الحساب',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
 
-      const Spacer(),
-
-      // عنوان الصفحة في الوسط
-      const Text(
-        'تعديل معلومات الحساب',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-
-      const Spacer(),
-
-      IconButton( icon: const 
-      Icon( Icons.arrow_forward, color: Colors.white, ), 
-      onPressed: () => Navigator.pop(context), ),
-    ],
-  ),
-),
-
-
+              // --- White Body ---
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -278,31 +347,25 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                             child: SingleChildScrollView(
                               child: Column(
                                 children: [
-                                  // الاسم الأول
+                                  // Names
                                   _buildProfileField(
                                     label: 'الاسم الأول',
                                     controller: _firstNameController,
-                                    validator: (v) => v == null || v.isEmpty
-                                        ? 'الرجاء إدخال الاسم الأول'
-                                        : null,
                                   ),
-
-                                  // الاسم الأخير
                                   _buildProfileField(
                                     label: 'الاسم الأخير',
                                     controller: _lastNameController,
-                                    validator: (v) => v == null || v.isEmpty
-                                        ? 'الرجاء إدخال الاسم الأخير'
-                                        : null,
                                   ),
 
-                                  // الهوية
+                                  // ID - Validation Applied
                                   _buildProfileField(
                                     label: 'الهوية',
                                     controller: _idController,
-                                    keyboardType: TextInputType.number,
+                                    isNumber: true,
+                                    hint: "1xxxxxxxxx",
                                   ),
 
+                                  // Parent Fields
                                   if (_role == 'parent') ...[
                                     _buildProfileField(
                                       label: 'المدينة',
@@ -318,18 +381,24 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                                     ),
                                   ],
 
+                                  // Driver Fields
                                   if (_role == 'driver') ...[
                                     _buildProfileField(
                                       label: 'رقم الرخصة',
                                       controller: _licenseController,
-                                      keyboardType: TextInputType.number,
+                                      isNumber: true,
+                                      hint: "1xxxxxxxxx",
                                     ),
                                     _buildProfileField(
                                       label: 'تاريخ الميلاد',
                                       controller: _birthDateController,
+                                      isReadOnly: true,
+                                      onTap: _pickDate,
+                                      hint: "اضغط للتعديل",
                                     ),
                                   ],
 
+                                  // Admin Fields
                                   if (_role == 'admin') ...[
                                     _buildProfileField(
                                       label: 'المدرسة',
@@ -338,48 +407,50 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                                     _buildProfileField(
                                       label: 'تاريخ الميلاد',
                                       controller: _birthDateController,
+                                      isReadOnly: true,
+                                      onTap: _pickDate,
+                                      hint: "اضغط للتعديل",
                                     ),
                                   ],
 
+                                  // Phone - Validation Applied
                                   _buildProfileField(
                                     label: 'رقم الجوال',
                                     controller: _phoneController,
-                                    keyboardType: TextInputType.phone,
+                                    isNumber: true,
+                                    hint: "05xxxxxxxx",
                                   ),
 
+                                  // Email
                                   _buildProfileField(
                                     label: 'البريد الإلكتروني',
                                     controller: _emailController,
-                                    keyboardType:
-                                        TextInputType.emailAddress,
+                                    hint: "example@mail.com",
                                   ),
 
                                   const SizedBox(height: 16),
 
-                                  // زر تعديل
+                                  // Save Button
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton.icon(
-                                      onPressed: _isUpdating
-                                          ? null
-                                          : _updateUserData,
+                                      onPressed: _isUpdating ? null : _updateUserData,
                                       icon: const Icon(Icons.edit_outlined),
                                       label: _isUpdating
                                           ? const Text('جاري التحديث...')
                                           : const Text('تعديل'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFFFCD4D8),
+                                        backgroundColor: const Color(0xFFFCD4D8),
                                         foregroundColor: Colors.black87,
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 12),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 20),
                                 ],
                               ),
                             ),

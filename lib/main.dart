@@ -1,38 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 1. Added for Auth check
 import 'firebase_options.dart';
 
-// Import all screens
+// --- Import all your screens ---
+// Make sure these paths match your folder structure!
 import 'screens/LoginScreen.dart';
 import 'screens/ChooseRoleScreen.dart';
-
-// Import your Placeholder Home Screens
 import 'screens/RoleHomeScreen.dart'; 
 import 'screens/EditAccountScreen.dart'; 
+// import 'screens/RegistrationScreen.dart'; // Optional: if you use named routes for it
 
-// --- 1. Define the Initializer/Future ---
-// You will likely check if a user is logged in here later.
-Future<String> _initializeAppAndDetermineRoute() async {
-  // 1. Ensure Flutter binding is initialized (done in main, but safe here)
-  // 2. Initialize Firebase (Already done in main, but let's keep it here for clarity if you moved it)
-  
-  // NOTE: Assuming Firebase.initializeApp() is done in the main function.
-  
-  // 3. Simulate other loading/authentication checks (e.g., SharedPreferences, Auth state)
-  await Future.delayed(const Duration(seconds: 2)); // Wait 2 seconds for effect
-  
-  // *** LOGIC TO DETERMINE START ROUTE GOES HERE ***
-  // e.g., if (userIsLoggedIn) return '/choose_role'; else return '/login';
-  
-  return '/login'; // Default route after loading
+// --- 1. The Startup Logic ---
+Future<Widget> _determineStartScreen() async {
+  // Wait a moment for the Splash Screen effect (Optional)
+  await Future.delayed(const Duration(seconds: 2));
+
+  // 2. CHECK AUTH STATE: Is a user already logged in?
+  User? user = FirebaseAuth.instance.currentUser;
+
+  if (user != null) {
+    // User is logged in -> Go to Home
+    return const RoleHomeScreen();
+  } else {
+    // No user -> Go to Login
+    return const LoginScreen();
+  }
 }
-// ----------------------------------------
 
 void main() async {
-  // 1. Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 2. Initialize Firebase FIRST, before running the app
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -40,26 +39,35 @@ void main() async {
   runApp(const HafilatyApp());
 }
 
-// --- 2. Create a dedicated Splash Screen Widget (Pure Flutter) ---
+// --- 2. Splash Screen ---
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Colors.blue, // Use your app's primary color
+      backgroundColor: Color(0xFF0D1B36), // Your App's Dark Blue
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Replace with your actual logo/image asset
-            FlutterLogo(size: 100, style: FlutterLogoStyle.horizontal, textColor: Colors.white), 
+            Icon(Icons.directions_bus, size: 80, color: Colors.white), // Simple Logo
             SizedBox(height: 20),
-            CircularProgressIndicator(color: Colors.white),
+            Text(
+              'حافلتي', // Hafilaty
+              style: TextStyle(
+                color: Colors.white, 
+                fontSize: 28, 
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Arial', // Or your custom font
+              ),
+            ),
+            SizedBox(height: 30),
+            CircularProgressIndicator(color: Color(0xFF6A994E)), // Green Accent
             SizedBox(height: 10),
             Text(
-              'جاري التحميل...', // Loading... in Arabic
-              style: TextStyle(color: Colors.white, fontSize: 18),
+              'جاري التحميل...',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
             ),
           ],
         ),
@@ -67,70 +75,53 @@ class SplashScreen extends StatelessWidget {
     );
   }
 }
-// ----------------------------------------
 
-
+// --- 3. The App Widget ---
 class HafilatyApp extends StatelessWidget {
   const HafilatyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: TextDirection.rtl, // Force RTL for Arabic
       child: MaterialApp(
         title: 'Hafilaty',
+        debugShowCheckedModeBanner: false, // Removes the "Debug" banner
         theme: ThemeData(
-          primarySwatch: Colors.blue,
-          fontFamily: 'HafilatyArabic',
+          primaryColor: const Color(0xFF0D1B36),
+          colorScheme: ColorScheme.fromSwatch().copyWith(
+            secondary: const Color(0xFF6A994E),
+          ),
+          fontFamily: 'Cairo', // Use a nice Arabic font if you have it
         ),
         
-        // ** MODIFICATION 1: Use the 'home' property to handle the initial loading **
-        home: FutureBuilder<String>(
-          future: _initializeAppAndDetermineRoute(),
+        // ** The Smart Home Property **
+        // Instead of string routes, we decide the WIDGET here.
+        home: FutureBuilder<Widget>(
+          future: _determineStartScreen(),
           builder: (context, snapshot) {
-            // Display the splash screen while loading
+            // 1. While loading, show Splash
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SplashScreen(); // Show our custom splash widget
+              return const SplashScreen();
             }
             
-            // Check for errors during initialization
-            if (snapshot.hasError) {
-              return const Center(child: Text("An error occurred during startup."));
-            }
-
-            // Once loading is complete, navigate to the determined route
-            // The snapshot.data contains the determined initial route string
+            // 2. If valid screen determined, return it
             if (snapshot.hasData) {
-              // We use Navigator.pushReplacement to start the app on the determined route
-              // and ensure the back button doesn't lead back to the splash screen.
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                 Navigator.pushReplacementNamed(context, snapshot.data!);
-              });
-              
-              // Return an empty container while the navigation happens
-              return Container(); 
+              return snapshot.data!;
             }
 
-            // Fallback (Should not happen)
-            return const Center(child: Text("Starting app..."));
+            // 3. Error case fallback
+            return const Scaffold(body: Center(child: Text("Error loading app")));
           },
         ),
-        
-        // ** MODIFICATION 2: Remove initialRoute since 'home' now controls the start **
-        // initialRoute: '/login', // REMOVED
-        
-        // ** MODIFICATION 3: Keep all named routes for navigation within the app **
+
+        // ** Named Routes **
+        // Use these for navigation within the app (e.g., Navigator.pushNamed)
         routes: {
           '/login': (context) => const LoginScreen(),
           '/choose_role': (context) => const ChooseRoleScreen(),
           '/role_home': (context) => const RoleHomeScreen(),
-
-          
-          // Role-specific Home Screens (Now using placeholders)
-          '/parent_home': (context) => const RoleHomeScreen(),
-          '/driver_home': (context) => const RoleHomeScreen(),
-          '/admin_home': (context) => const RoleHomeScreen(),
-          '/EditAccountScreen': (context) => const EditAccountScreen(),
+          '/edit_profile': (context) => const EditAccountScreen(),
         },
       ),
     );

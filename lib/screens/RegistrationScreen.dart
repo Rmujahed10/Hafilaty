@@ -3,9 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// --- IMPORT YOUR VALIDATOR LOGIC HERE ---
+// Make sure 'hafilaty' matches the name: in your pubspec.yaml
+import 'package:hafilaty/utils/validators.dart'; 
+
+// --- Constants ---
 const Color kDarkBlue = Color(0xFF0D1B36);
 const Color kAccent = Color(0xFF6A994E);
 
+// --- Helper Functions ---
 String convertToAuthEmail(String phone) {
   final cleaned = phone.replaceAll(RegExp(r'[^\d]'), '');
   return '$cleaned@hafilatyapp.com';
@@ -28,6 +34,7 @@ class RegistrationScreen extends StatefulWidget {
 class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  // --- Controllers ---
   final firstName = TextEditingController();
   final lastName = TextEditingController();
   final nationalId = TextEditingController();
@@ -42,7 +49,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   final licenseNumber = TextEditingController();
   final birthDate = TextEditingController();
-
   final school = TextEditingController();
 
   bool loading = false;
@@ -65,6 +71,35 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     super.dispose();
   }
 
+  // --- Date Picker Logic ---
+  Future<void> _pickDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(1990),
+      firstDate: DateTime(1950),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: kAccent,
+              onPrimary: Colors.white,
+              onSurface: kDarkBlue,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        birthDate.text = "${picked.year}-${picked.month}-${picked.day}";
+      });
+    }
+  }
+
+  // --- Database Logic ---
   Map<String, dynamic> buildUserData(String uid) {
     final role = widget.role;
 
@@ -130,13 +165,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           .doc(uid)
           .set(buildUserData(uid));
 
+      if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
         widget.successRoute,
         (route) => false,
       );
     } catch (e) {
-      showError("حدث خطأ أثناء التسجيل");
+      showError("حدث خطأ أثناء التسجيل: $e");
     }
 
     setState(() => loading = false);
@@ -146,36 +182,63 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // --- Role Specific Fields ---
   List<Widget> roleFields() {
     switch (widget.role) {
       case "parent":
         return [
-          buildField("المدينة", city, Icons.location_city),
-          buildField("الحي", district, Icons.map),
+          buildField("المدينة", city, Icons.location_city, hint: "مثال: جدة"),
+          buildField("الحي", district, Icons.map, hint: "مثال: حي الروضة"),
           buildField("الشارع", street, Icons.streetview),
         ];
       case "driver":
         return [
-          buildField("رقم الرخصة", licenseNumber, Icons.badge),
-          buildField("تاريخ الميلاد", birthDate, Icons.calendar_today),
+          buildField(
+            "رقم الرخصة",
+            licenseNumber,
+            Icons.badge,
+            isNumber: true,
+            hint: "1xxxxxxxxx"
+          ),
+          buildField(
+            "تاريخ الميلاد",
+            birthDate,
+            Icons.calendar_today,
+            isReadOnly: true,
+            onTap: _pickDate,
+            hint: "اضغط للاختيار"
+          ),
         ];
       case "admin":
         return [
           buildField("اسم المدرسة", school, Icons.school),
-          buildField("تاريخ الميلاد", birthDate, Icons.calendar_today),
+          buildField(
+            "تاريخ الميلاد",
+            birthDate,
+            Icons.calendar_today,
+            isReadOnly: true,
+            onTap: _pickDate,
+            hint: "اضغط للاختيار"
+          ),
         ];
     }
     return [];
   }
 
+  // --- Smart Field Widget (Updated with Validators) ---
   Widget buildField(
     String label,
     TextEditingController controller,
     IconData icon, {
     bool isPassword = false,
+    bool isNumber = false,
+    bool isReadOnly = false,
+    VoidCallback? onTap,
+    String? hint,
   }) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      // Ensure labels start from the Right side
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -185,11 +248,48 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         TextFormField(
           controller: controller,
           obscureText: isPassword,
-          textAlign: TextAlign.right,
-          validator: (v) => v!.isEmpty ? "الحقل مطلوب" : null,
+          // Validates as you type
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          
+          readOnly: isReadOnly,
+          onTap: onTap,
+          
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          maxLength: isNumber ? 10 : null,
+          inputFormatters: isNumber
+              ? [FilteringTextInputFormatter.digitsOnly]
+              : [],
+
+          // --- MODIFIED VALIDATOR SECTION ---
+          validator: (v) {
+            // 1. Logic for Numeric Fields (ID, Phone, License)
+            // This calls your tested Unit Test logic
+            if (isNumber) {
+              return Validators.validateTenDigitNumber(v, label);
+            }
+            
+            // 2. Logic for Email
+            // This calls your tested Unit Test logic
+            if (!isNumber && !isPassword && label.contains("البريد")) {
+              return Validators.validateEmail(v);
+            }
+
+            // 3. Fallback for other text fields (Name, City, etc.)
+            if (v == null || v.isEmpty) return "$label مطلوب";
+            
+            return null;
+          },
+          // ----------------------------------
+
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[200],
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            
+            // Shows 0/10 counter only for numbers
+            counterText: isNumber ? null : "",
+            
             suffixIcon: Icon(icon, color: kAccent),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -201,7 +301,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
       ],
     );
   }
@@ -214,28 +314,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ? "إنشاء حساب سائق"
             : "إنشاء حساب مشرف";
 
+    // 1. Force RTL Direction
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: kDarkBlue,
         body: Stack(
           children: [
-            // BLUE HEADER
+            // --- Blue Header ---
             Container(
               height: MediaQuery.of(context).size.height * 0.28,
               padding: const EdgeInsets.only(top: 40, left: 15, right: 15),
               color: kDarkBlue,
               child: Column(
                 children: [
-                  // FIXED BACK BUTTON (always points left)
+                  // Back Button (Automatically flips in RTL)
                   Align(
-                    alignment: Alignment.centerLeft,
-                    child: Directionality(
-                      textDirection: TextDirection.ltr, // forces left arrow
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
+                    alignment: Alignment.centerRight, // RTL: Start = Right
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ),
 
@@ -254,7 +352,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
 
-            // WHITE FORM CONTAINER
+            // --- White Form Container ---
             Container(
               margin: EdgeInsets.only(
                 top: MediaQuery.of(context).size.height * 0.23,
@@ -269,14 +367,28 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      buildField("الاسم الأول", firstName, Icons.person),
-                      buildField("الاسم الأخير", lastName, Icons.person),
-                      buildField("رقم الهوية", nationalId, Icons.credit_card),
+                      buildField("الاسم الأول", firstName, Icons.person, hint: "أحمد"),
+                      buildField("الاسم الأخير", lastName, Icons.person, hint: "الغامدي"),
+                      
+                      buildField(
+                        "رقم الهوية",
+                        nationalId,
+                        Icons.credit_card,
+                        isNumber: true,
+                        hint: "1xxxxxxxxx"
+                      ),
 
                       ...roleFields(),
 
-                      buildField("رقم الجوال", phone, Icons.phone),
-                      buildField("البريد الإلكتروني", email, Icons.email),
+                      buildField(
+                        "رقم الجوال",
+                        phone,
+                        Icons.phone,
+                        isNumber: true,
+                        hint: "05xxxxxxxx"
+                      ),
+                      
+                      buildField("البريد الإلكتروني", email, Icons.email, hint: "example@mail.com"),
 
                       buildField(
                         "كلمة المرور",
@@ -291,7 +403,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         isPassword: true,
                       ),
 
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 20),
 
                       ElevatedButton(
                         onPressed: loading ? null : register,
@@ -313,6 +425,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                 ),
                               ),
                       ),
+                      
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
