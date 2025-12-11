@@ -149,7 +149,7 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
                             label: "تعديل الملف الشخصي",
                             icon: Icons.edit,
                             onTap: () => Navigator.pushNamed(
-                                context, "/role_edit_info"),
+                                context, "/EditAccountScreen"),
                           ),
 
                           _menuButton(
