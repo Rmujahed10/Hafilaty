@@ -45,6 +45,78 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
     await FirebaseAuth.instance.signOut();
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+  final bool? confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف الحساب'),
+          content: const Text(
+            'هل أنت متأكد أنك تريد حذف الحساب نهائيًا؟ لا يمكن التراجع عن هذه العملية.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('حذف'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  if (confirm == true) {
+    await _deleteAccount(context);
+  }
+}
+
+Future<void> _deleteAccount(BuildContext context) async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // تخزين uid قبل الحذف
+    final uid = user.uid;
+
+    // 1) حذف بيانات المستخدم من Firestore
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .delete();
+
+    // 2) حذف الحساب من Firebase Auth
+    await user.delete();
+
+    // 3) الذهاب لصفحة تسجيل الدخول
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login',
+      (route) => false,
+    );
+  } on FirebaseAuthException catch (e) {
+    // أحيانًا Firebase يطلب "تسجيل دخول حديث" قبل الحذف
+    debugPrint('Auth delete error: ${e.code} - ${e.message}');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('فشل حذف الحساب. يرجى تسجيل الدخول مرة أخرى ثم المحاولة.'),
+      ),
+    );
+  } catch (e) {
+    debugPrint('Delete account error: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('حدث خطأ أثناء حذف الحساب.')),
+    );
+  }
+}
+
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -173,10 +245,11 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
                           const SizedBox(height: 20),
 
                           _dangerButton(
-                            label: "حذف الحساب",
-                            icon: Icons.delete,
-                            onTap: null, // disabled
-                          ),
+  label: "حذف الحساب",
+  icon: Icons.delete,
+  onTap: () => _confirmDeleteAccount(context),
+),
+
 
                           const SizedBox(height: 10),
 
