@@ -54,12 +54,12 @@ class SplashScreen extends StatelessWidget {
             Icon(Icons.directions_bus, size: 80, color: Colors.white), // Simple Logo
             SizedBox(height: 20),
             Text(
-              'حافلتي', // Hafilaty
+              'حافلاتي', // Hafilaty
               style: TextStyle(
                 color: Colors.white, 
                 fontSize: 28, 
                 fontWeight: FontWeight.bold,
-                fontFamily: 'Arial', // Or your custom font
+                fontFamily: 'HafilatyArabic',
               ),
             ),
             SizedBox(height: 30),
@@ -92,7 +92,7 @@ class HafilatyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSwatch().copyWith(
             secondary: const Color(0xFF6A994E),
           ),
-          fontFamily: 'Cairo', // Use a nice Arabic font if you have it
+          fontFamily: 'HafilatyArabic', // Use a nice Arabic font if you have it
         ),
         
         // ** The Smart Home Property **
