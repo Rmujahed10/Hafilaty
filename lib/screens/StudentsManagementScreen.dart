@@ -129,18 +129,41 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  // 4. Bottom Navigation Bar (Mirroring your Figma icons)
+  // 4. Bottom Navigation Bar
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       selectedItemColor: _kDarkBlue,
       unselectedItemColor: Colors.grey,
-      currentIndex: 1, // Highlighting "Management"
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.settings), label: ''),
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-        BottomNavigationBarItem(icon: Icon(Icons.group), label: ''),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
+      currentIndex: 1,
+      items: [
+        BottomNavigationBarItem(
+          icon: Image.asset('assets/HomeIcon.png', width: 28, height: 28),
+          label: '',
+        ),
+
+        BottomNavigationBarItem(
+          icon: Image.asset(
+            'assets/StudentMangeIcon.png',
+            width: 28,
+            height: 28,
+          ),
+          label: '',
+        ),
+
+        BottomNavigationBarItem(
+          icon: Image.asset(
+            'assets/DriverMangeIcon.png',
+            width: 28,
+            height: 28,
+          ),
+          label: '',
+        ),
+
+        BottomNavigationBarItem(
+          icon: Image.asset('assets/ProfileIcon.png', width: 28, height: 28),
+          label: '',
+        ),
       ],
     );
   }
