@@ -16,8 +16,8 @@ dependencies:
     sdk: flutter
 
   firebase_auth: ^4.19.2
-  firebase_core: ^2.28.0
-  cloud_firestore: ^4.17.0
+  firebase_core: ^2.25.0
+  cloud_firestore: ^4.15.0
   firebase_database: ^10.5.7
   cupertino_icons: ^1.0.8
 
@@ -45,7 +45,7 @@ flutter: # <--- ROOT LEVEL (Column 1)
   uses-material-design: true # <--- Indented 2 spaces
 
   assets: # <--- Indented 2 spaces
-    - assets/ # <--- Indented 4 spaces (Ensure your images are here)
+    - lib/assets/ # <--- Indented 4 spaces (Ensure your images are here)
 
   fonts: # <--- Indented 2 spaces
     - family: HafilatyArabic # <--- Indented 4 spaces
