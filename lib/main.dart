@@ -7,8 +7,9 @@ import 'firebase_options.dart';
 // Make sure these paths match your folder structure!
 import 'screens/LoginScreen.dart';
 import 'screens/ChooseRoleScreen.dart';
-import 'screens/RoleHomeScreen.dart'; 
-import 'screens/EditAccountScreen.dart'; 
+import 'screens/RoleHomeScreen.dart';
+import 'screens/EditAccountScreen.dart';
+import 'screens/StudentsManagementScreen.dart';
 // import 'screens/RegistrationScreen.dart'; // Optional: if you use named routes for it
 
 // --- 1. The Startup Logic ---
@@ -30,12 +31,10 @@ Future<Widget> _determineStartScreen() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const HafilatyApp());
 }
 
@@ -51,13 +50,17 @@ class SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.directions_bus, size: 80, color: Colors.white), // Simple Logo
+            Icon(
+              Icons.directions_bus,
+              size: 80,
+              color: Colors.white,
+            ), // Simple Logo
             SizedBox(height: 20),
             Text(
               'حافلاتي', // Hafilaty
               style: TextStyle(
-                color: Colors.white, 
-                fontSize: 28, 
+                color: Colors.white,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'HafilatyArabic',
               ),
@@ -94,7 +97,7 @@ class HafilatyApp extends StatelessWidget {
           ),
           fontFamily: 'HafilatyArabic', // Use a nice Arabic font if you have it
         ),
-        
+
         // ** The Smart Home Property **
         // Instead of string routes, we decide the WIDGET here.
         home: FutureBuilder<Widget>(
@@ -104,14 +107,16 @@ class HafilatyApp extends StatelessWidget {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SplashScreen();
             }
-            
+
             // 2. If valid screen determined, return it
             if (snapshot.hasData) {
               return snapshot.data!;
             }
 
             // 3. Error case fallback
-            return const Scaffold(body: Center(child: Text("Error loading app")));
+            return const Scaffold(
+              body: Center(child: Text("Error loading app")),
+            );
           },
         ),
 
@@ -122,6 +127,7 @@ class HafilatyApp extends StatelessWidget {
           '/choose_role': (context) => const ChooseRoleScreen(),
           '/role_home': (context) => const RoleHomeScreen(),
           '/edit_profile': (context) => const EditAccountScreen(),
+          '/students_management': (context) => const StudentsManagementScreen(),
         },
       ),
     );

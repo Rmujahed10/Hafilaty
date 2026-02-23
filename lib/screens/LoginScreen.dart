@@ -43,6 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // ----------------------------------------------------
   // ROLE CHECK → Always navigate to /role_home
   // ----------------------------------------------------
+  // داخل ملف LoginScreen.dart
+
   Future<void> _checkRoleAndNavigate(User user) async {
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance
@@ -56,12 +58,16 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Now ALL roles navigate to the same home screen
-      Navigator.of(context).pushReplacementNamed('/role_home');
+      String role = doc.get('role') ?? 'user';
 
+      if (role == 'admin') {
+        Navigator.of(context).pushReplacementNamed('/students_management');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/role_home');
+      }
     } catch (e) {
       print('Error during role check: $e');
-      _showError('حدث خطأ أثناء التحقق من بيانات المستخدم.');
+      _showError('حدث خطأ أثناء التحقق من صلاحيات المسؤول.');
       await FirebaseAuth.instance.signOut();
     }
   }
@@ -79,13 +85,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final credential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: authEmail, password: password);
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: authEmail,
+        password: password,
+      );
 
       if (credential.user != null) {
         await _checkRoleAndNavigate(credential.user!);
       }
-
     } on FirebaseAuthException catch (e) {
       String message = 'حدث خطأ في تسجيل الدخول.';
       if (e.code == 'user-not-found' || e.code == 'wrong-password') {
@@ -94,7 +101,6 @@ class _LoginScreenState extends State<LoginScreen> {
         message = 'تم حظر الحساب مؤقتاً بسبب محاولات خاطئة متكررة.';
       }
       _showError(message);
-
     } catch (e) {
       print(e);
       _showError('حدث خطأ غير متوقع.');
@@ -104,8 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ----------------------------------------------------
@@ -137,16 +144,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                Form(
-                  key: _formKey,
-                  child: _buildLoginCard(),
-                ),
+                Form(key: _formKey, child: _buildLoginCard()),
 
                 TextButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ChooseRoleScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const ChooseRoleScreen(),
+                      ),
                     );
                   },
                   child: const Text(
@@ -172,10 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.only(bottom: 30.0),
-              child: Image.asset(
-                'assets/hafilaty_logo.png',
-                height: 100,
-              ),
+              child: Image.asset('assets/hafilaty_logo.png', height: 100),
             ),
 
             _buildInputField(
@@ -183,8 +186,9 @@ class _LoginScreenState extends State<LoginScreen> {
               _phoneController,
               Icons.phone,
               TextInputType.phone,
-              validator: (value) =>
-                  (value == null || value.isEmpty) ? 'الرجاء إدخال رقم الجوال' : null,
+              validator: (value) => (value == null || value.isEmpty)
+                  ? 'الرجاء إدخال رقم الجوال'
+                  : null,
             ),
 
             const SizedBox(height: 20),
@@ -195,8 +199,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Icons.lock,
               TextInputType.text,
               isPassword: true,
-              validator: (value) =>
-                  (value == null || value.isEmpty) ? 'الرجاء إدخال كلمة المرور' : null,
+              validator: (value) => (value == null || value.isEmpty)
+                  ? 'الرجاء إدخال كلمة المرور'
+                  : null,
             ),
 
             Align(
@@ -251,8 +256,9 @@ class _LoginScreenState extends State<LoginScreen> {
           obscureText: isPassword,
           textAlign: TextAlign.right,
           validator: validator,
-          inputFormatters:
-              type == TextInputType.phone ? [FilteringTextInputFormatter.digitsOnly] : null,
+          inputFormatters: type == TextInputType.phone
+              ? [FilteringTextInputFormatter.digitsOnly]
+              : null,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[200],
@@ -261,7 +267,10 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(30.0),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 15,
+            ),
           ),
         ),
       ],
@@ -285,17 +294,26 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
         ),
         child: _isLoading
             ? const SizedBox(
                 width: 24,
                 height: 24,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                ),
               )
             : const Text(
                 'تسجيل الدخول',
-                style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
       ),
     );
