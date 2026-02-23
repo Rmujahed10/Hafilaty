@@ -26,6 +26,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        shape: const CircleBorder(),
         onPressed: () {
           // Navigate to add student screen
           Navigator.pushNamed(context, '/register_student');
@@ -64,70 +65,146 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   }
 
   // 2. The List of Student Cards
-  Widget _buildStudentList() {
-    // Using a StreamBuilder to get real-time data from Firestore
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('students').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const Center(child: Text('حدث خطأ ما'));
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+Widget _buildStudentList() {
+  return StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('Students') // ← Capital S
+        .where('SchoolID', isEqualTo: 32438) // ← نفس الاسم بالضبط
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return const Center(child: Text('حدث خطأ'));
+      }
 
-        final students = snapshot.data?.docs ?? [];
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          itemCount: students.length,
-          itemBuilder: (context, index) {
-            var data = students[index].data() as Map<String, dynamic>;
-            return _buildStudentCard(
-              data['name'] ?? 'اسم الطالب',
-              students[index].id,
-            );
-          },
+      final students = snapshot.data?.docs ?? [];
+
+      if (students.isEmpty) {
+        return const Center(
+          child: Text('لا يوجد طلاب لهذه المدرسة'),
         );
-      },
-    );
-  }
+      }
 
-  // 3. Individual Student Card Item
-  Widget _buildStudentCard(String name, String id) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Icon(Icons.arrow_back_ios, size: 18, color: Colors.grey),
-          Expanded(
-            child: Text(
-              name,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        itemCount: students.length,
+        itemBuilder: (context, index) {
+          final data = students[index].data() as Map<String, dynamic>;
+
+          return _buildStudentCard(
+            data['StudentName'] ?? 'اسم غير متوفر', // ← نفس الحقل
+            students[index].id,
+          );
+        },
+      );
+    },
+  );
+}
+
+// كارد وهمي (Rectangle) نفس شكل الفيجما
+Widget _placeholderStudentCard() {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.grey.shade300, width: 1.2),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.06),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.chevron_left, size: 26, color: Colors.grey),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            height: 14,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
-          const SizedBox(width: 15),
-          const CircleAvatar(
-            backgroundColor: Color(0xFFFFD166), // Yellow circle from your UI
-            child: Icon(Icons.person, color: Colors.white),
-          ),
-        ],
+        ),
+        const SizedBox(width: 14),
+        const CircleAvatar(
+          radius: 18,
+          backgroundColor: Color(0xFFFFD166),
+          child: Icon(Icons.person, color: Colors.white, size: 20),
+        ),
+      ],
+    ),
+  );
+}
+
+  // 3. Individual Student Card Item
+Widget _buildStudentCard(String name, String id) {
+  return Container(
+    margin: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: Colors.white, // خليها أبيض صريح
+      borderRadius: BorderRadius.circular(22), // أكثر استدارة
+      border: Border.all(
+        color: const Color(0xFFE5E5E5), // بوردر أوضح
+        width: 1.3,
       ),
-    );
-  }
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04), // ظل خفيف جداً
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.chevron_left,
+          size: 26,
+          color: Colors.grey.shade500,
+        ),
+
+        const SizedBox(width: 14),
+
+        Expanded(
+          child: Text(
+            name,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14.5,
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 14),
+
+        Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFD166),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.person,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   // 4. Bottom Navigation Bar (Mirroring your Figma icons)
   Widget _buildBottomNav() {
