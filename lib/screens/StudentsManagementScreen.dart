@@ -207,18 +207,13 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
       type: BottomNavigationBarType.fixed,
       selectedItemColor: _kDarkBlue,
       unselectedItemColor: Colors.grey,
-      currentIndex: 1,
+      currentIndex: 0,
       onTap: (index) {
         switch (index) {
           case 0:
             Navigator.pushReplacementNamed(context, '/home');
             break;
           case 1:
-            break;
-          case 2:
-            Navigator.pushReplacementNamed(context, '/drivers_management');
-            break;
-          case 3:
             Navigator.pushReplacementNamed(context, '/profile');
             break;
         }
@@ -228,14 +223,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
           icon: Image.asset('assets/HomeIcon.png', width: 28, height: 28),
           label: '',
         ),
-        BottomNavigationBarItem(
-          icon: Image.asset('assets/StudentMangeIcon.png', width: 28, height: 28),
-          label: '',
-        ),
-        BottomNavigationBarItem(
-          icon: Image.asset('assets/DriverMangeIcon.png', width: 28, height: 28),
-          label: '',
-        ),
+
         BottomNavigationBarItem(
           icon: Image.asset('assets/ProfileIcon.png', width: 28, height: 28),
           label: '',

@@ -178,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.only(bottom: 30.0),
-              child: Image.asset('assets/hafilaty_logo.png', height: 100),
+              child: Image.asset('assets/LaunchImage@3x.png', height: 100),
             ),
 
             _buildInputField(
