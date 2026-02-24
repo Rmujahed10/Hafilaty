@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'student_info_screen.dart';
 
 // --- Color Constants (Matching your Login Screen) ---
 const Color _kDarkBlue = Color(0xFF0D1B36);
@@ -146,62 +147,51 @@ Widget _placeholderStudentCard() {
 }
 
   // 3. Individual Student Card Item
-Widget _buildStudentCard(String name, String id) {
-  return Container(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    decoration: BoxDecoration(
-      color: Colors.white, // خليها أبيض صريح
-      borderRadius: BorderRadius.circular(22), // أكثر استدارة
-      border: Border.all(
-        color: const Color(0xFFE5E5E5), // بوردر أوضح
-        width: 1.3,
+Widget _buildStudentCard(String name, String docId) {
+  return InkWell(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StudentInfoScreen(studentDocId: docId),
+        ),
+      );
+    },
+    borderRadius: BorderRadius.circular(18),
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade300, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04), // ظل خفيف جداً
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Row(
-      children: [
-        Icon(
-          Icons.chevron_left,
-          size: 26,
-          color: Colors.grey.shade500,
-        ),
-
-        const SizedBox(width: 14),
-
-        Expanded(
-          child: Text(
-            name,
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14.5,
+      child: Row(
+        children: [
+          const Icon(Icons.chevron_left, size: 26, color: Colors.grey),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
             ),
           ),
-        ),
-
-        const SizedBox(width: 14),
-
-        Container(
-          width: 36,
-          height: 36,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFD166),
-            shape: BoxShape.circle,
+          const SizedBox(width: 14),
+          const CircleAvatar(
+            radius: 18,
+            backgroundColor: Color(0xFFFFD166),
+            child: Icon(Icons.person, color: Colors.white, size: 20),
           ),
-          child: const Icon(
-            Icons.person,
-            color: Colors.white,
-            size: 18,
-          ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
