@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'student_info_screen.dart';
 
-// --- Color Constants (Matching your Login Screen) ---
+// --- Color Constants ---
 const Color _kDarkBlue = Color(0xFF0D1B36);
-const Color _kGreenAccent = Color(0xFF6A994E);
+// إذا ما تستخدمه احذفه عشان يروح التحذير
+// const Color _kGreenAccent = Color(0xFF6A994E);
 
 class StudentsManagementScreen extends StatefulWidget {
   const StudentsManagementScreen({super.key});
@@ -19,7 +20,6 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // Custom AppBar/Header to match the Figma design
       body: Column(
         children: [
           _buildHeader(),
@@ -29,7 +29,6 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
       floatingActionButton: FloatingActionButton(
         shape: const CircleBorder(),
         onPressed: () {
-          // Navigate to add student screen
           Navigator.pushNamed(context, '/register_student');
         },
         backgroundColor: _kDarkBlue,
@@ -40,7 +39,6 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  // 1. The Blue Header with the Title
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -65,12 +63,11 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  // 2. The List of Student Cards
   Widget _buildStudentList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('Students') // ← Capital S
-          .where('SchoolID', isEqualTo: 32438) // ← نفس الاسم بالضبط
+          .collection('Students')
+          .where('SchoolID', isEqualTo: 32438)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -78,6 +75,12 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
+          // لو تبغى placeholder بدل اللودينق:
+          // return ListView.builder(
+          //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          //   itemCount: 6,
+          //   itemBuilder: (context, index) => _placeholderStudentCard(),
+          // );
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -92,9 +95,8 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
           itemCount: students.length,
           itemBuilder: (context, index) {
             final data = students[index].data() as Map<String, dynamic>;
-
             return _buildStudentCard(
-              data['StudentName'] ?? 'اسم غير متوفر', // ← نفس الحقل
+              (data['StudentName'] ?? 'اسم غير متوفر').toString(),
               students[index].id,
             );
           },
@@ -103,7 +105,6 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  // كارد وهمي (Rectangle) نفس شكل الفيجما
   Widget _placeholderStudentCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -144,127 +145,79 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  // 3. Individual Student Card Item
-<<<<<<< HEAD
-Widget _buildStudentCard(String name, String docId) {
-  return InkWell(
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => StudentInfoScreen(studentDocId: docId),
-        ),
-      );
-    },
-    borderRadius: BorderRadius.circular(18),
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade300, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-=======
-  Widget _buildStudentCard(String name, String id) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white, // خليها أبيض صريح
-        borderRadius: BorderRadius.circular(22), // أكثر استدارة
-        border: Border.all(
-          color: const Color(0xFFE5E5E5), // بوردر أوضح
-          width: 1.3,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04), // ظل خفيف جداً
-            blurRadius: 8,
->>>>>>> e64c90b02a9bb44dde216dcdc33fe03f342eaa57
-            offset: const Offset(0, 4),
+  // ✅ بطاقة الطالب + فتح صفحة التفاصيل عند الضغط
+  Widget _buildStudentCard(String name, String docId) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => StudentInfoScreen(studentDocId: docId),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-<<<<<<< HEAD
-          const Icon(Icons.chevron_left, size: 26, color: Colors.grey),
-          const SizedBox(width: 12),
-=======
-          Icon(Icons.chevron_left, size: 26, color: Colors.grey.shade500),
-
-          const SizedBox(width: 14),
-
->>>>>>> e64c90b02a9bb44dde216dcdc33fe03f342eaa57
-          Expanded(
-            child: Text(
-              name,
-              textAlign: TextAlign.right,
-<<<<<<< HEAD
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        );
+      },
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE5E5E5), width: 1.3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 14),
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: Color(0xFFFFD166),
-            child: Icon(Icons.person, color: Colors.white, size: 20),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-=======
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14.5,
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.chevron_left, size: 26, color: Colors.grey.shade500),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                name,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                ),
               ),
             ),
-          ),
-
-          const SizedBox(width: 14),
-
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFD166),
-              shape: BoxShape.circle,
+            const SizedBox(width: 14),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFD166),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person, color: Colors.white, size: 18),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 18),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
->>>>>>> e64c90b02a9bb44dde216dcdc33fe03f342eaa57
 
-  // 4. Bottom Navigation Bar
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       selectedItemColor: _kDarkBlue,
       unselectedItemColor: Colors.grey,
-      currentIndex: 1, // لأنك الآن في صفحة الطلاب
+      currentIndex: 1,
       onTap: (index) {
         switch (index) {
           case 0:
             Navigator.pushReplacementNamed(context, '/home');
             break;
-
           case 1:
-            //طلاب
             break;
-
           case 2:
             Navigator.pushReplacementNamed(context, '/drivers_management');
             break;
-
           case 3:
             Navigator.pushReplacementNamed(context, '/profile');
             break;
@@ -276,19 +229,11 @@ Widget _buildStudentCard(String name, String docId) {
           label: '',
         ),
         BottomNavigationBarItem(
-          icon: Image.asset(
-            'assets/StudentMangeIcon.png',
-            width: 28,
-            height: 28,
-          ),
+          icon: Image.asset('assets/StudentMangeIcon.png', width: 28, height: 28),
           label: '',
         ),
         BottomNavigationBarItem(
-          icon: Image.asset(
-            'assets/DriverMangeIcon.png',
-            width: 28,
-            height: 28,
-          ),
+          icon: Image.asset('assets/DriverMangeIcon.png', width: 28, height: 28),
           label: '',
         ),
         BottomNavigationBarItem(
