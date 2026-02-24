@@ -105,7 +105,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  Widget _placeholderStudentCard() {
+  Widget placeholderStudentCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
