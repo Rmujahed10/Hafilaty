@@ -45,7 +45,7 @@ flutter: # <--- ROOT LEVEL (Column 1)
   uses-material-design: true # <--- Indented 2 spaces
 
   assets: # <--- Indented 2 spaces
-    - lib/assets/ # <--- Indented 4 spaces (Ensure your images are here)
+    - assets/ # <--- Indented 4 spaces (Ensure your images are here)
 
   fonts: # <--- Indented 2 spaces
     - family: HafilatyArabic # <--- Indented 4 spaces

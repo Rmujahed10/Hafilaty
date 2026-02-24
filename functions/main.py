@@ -1,10 +1,4 @@
-# Welcome to Cloud Functions for Firebase for Python!
-# To get started, simply uncomment the below code or create your own.
-# Deploy with `firebase deploy`
-
-from firebase_functions import https_fn
-from firebase_functions.options import set_global_options
-from firebase_admin import initialize_app
+# Deploy with `firebase deploy --only functions`
 
 from firebase_functions import firestore_fn
 from firebase_admin import initialize_app, firestore
@@ -12,24 +6,26 @@ import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
+from firebase_functions.options import set_global_options
+
+# Set the global memory to 512MiB to handle Pandas/Sklearn overhead
+set_global_options(memory=512)
 
 # Initialize the Firebase Admin SDK
 app = initialize_app()
 
 def run_capacitated_clustering(df, n_clusters, bus_capacity):
-    """The same logic from your notebook, adapted for the Cloud Function"""
+    """Core AI Logic: Groups students by location with capacity limits"""
     if df.empty:
         return df
 
     coords = df[['Latitude', 'Longitude']].values
-    # Ensure we don't try to create more clusters than students
     actual_clusters = min(n_clusters, len(df))
     
     kmeans = KMeans(n_clusters=actual_clusters, random_state=42, n_init=10)
     df['BusID'] = kmeans.fit_predict(coords)
     centroids = kmeans.cluster_centers_
     
-    # Balancing Loop
     while True:
         counts = df['BusID'].value_counts()
         overloaded = counts[counts > bus_capacity].index.tolist()
@@ -50,60 +46,102 @@ def run_capacitated_clustering(df, n_clusters, bus_capacity):
             df.at[furthest_idx, 'BusID'] = new_bus_id
     return df
 
-@firestore_fn.on_document_created(document="Students/{studentId}")
-def on_student_enrolled(event: firestore_fn.Event[firestore_fn.DocumentSnapshot]) -> None:
-    """Triggered whenever a new document is added to the Students collection"""
-    snapshot = event.data
-    if not snapshot:
-        return
-
-    new_student_data = snapshot.to_dict()
-    school_id = new_student_data.get("SchoolID")
-    
-    if not school_id:
-        print("No SchoolID found in the new student document.")
-        return
-
+def reoptimize_school_routes(school_id):
+    """Helper Function: Cleans old data and re-calculates bus assignments"""
     db = firestore.client()
 
-    # 1. Fetch all students for this specific school
-    docs = db.collection("Students").where("SchoolID", "==", school_id).stream()
+    # --- DATA TYPE FIX ---
+    # Firestore Document Paths REQUIRE a string.
+    # Firestore Queries (where) REQUIRE the exact type in the DB (int).
+    doc_path_id = str(school_id)
+    try:
+        numeric_search_id = int(school_id)
+    except (ValueError, TypeError):
+        numeric_search_id = school_id
+
+    # 1. Fetch School Config using the string path
+    school_ref = db.collection("Schools").document(doc_path_id).get()
+    if not school_ref.exists:
+        print(f"School document '{doc_path_id}' not found.")
+        return
+    
+    config = school_ref.to_dict()
+    n_buses = config.get("BusCount", 2)
+    capacity = config.get("BusCapacity", 50)
+
+    # 2. Fetch all current students using the numeric ID
+    docs = db.collection("Students").where("SchoolID", "==", numeric_search_id).stream()
     students_data = []
+    student_refs = [] 
     for doc in docs:
         d = doc.to_dict()
-        d['doc_id'] = doc.id # Keep the document ID to update it later
+        d['doc_id'] = doc.id 
         students_data.append(d)
+        student_refs.append(doc.reference)
     
+    if not students_data:
+        print(f"No students found for numeric SchoolID: {numeric_search_id}")
+        return
+
     df = pd.DataFrame(students_data)
 
-    # 2. Run Clustering (Example: 2 buses, capacity 50)
-    # In a real app, you could fetch n_buses/capacity from a 'Schools' doc
-    df_result = run_capacitated_clustering(df, n_clusters=2, bus_capacity=50)
+    # 3. Run AI Clustering
+    df_result = run_capacitated_clustering(df, n_clusters=n_buses, bus_capacity=capacity)
 
-    # 3. WRITE BACK TO FIRESTORE (Batch Update)
+    # 4. Atomic Cleanup and Update (Max 500 operations)
     batch = db.batch()
 
-    # Update each student with their new BusID
-    for _, row in df_result.iterrows():
-        student_ref = db.collection("Students").document(row['doc_id'])
-        batch.update(student_ref, {"BusID": int(row['BusID'])})
+    # STEP A: Delete ALL old Bus documents for this school
+    old_buses = db.collection("Buses").where("SchoolID", "==", numeric_search_id).stream()
+    for bus_doc in old_buses:
+        batch.delete(bus_doc.reference)
 
-    # 4. Update the 'Buses' collection for the drivers
-    # This groups students by their assigned BusID
+    # STEP B: Clear old BusID assignments from all students
+    for ref in student_refs:
+        batch.update(ref, {"BusID": firestore.DELETE_FIELD})
+
+    # 5. Create NEW assignments and Bus Manifests
     bus_groups = df_result.groupby('BusID')
-    for bus_id, group in bus_groups:
-        bus_doc_id = f"School_{school_id}_Bus_{int(bus_id)}"
-        bus_ref = db.collection("Buses").document(bus_doc_id)
+    for bus_idx, group in bus_groups:
+        # Simple Unique ID (Starting at 101)
+        friendly_bus_number = int(bus_idx) + 101
+        bus_doc_id = f"Bus_{numeric_search_id}_{friendly_bus_number}"
         
-        bus_data = {
-            "SchoolID": school_id,
-            "BusNumber": int(bus_id),
-            "StudentList": group['doc_id'].tolist(), # List of student IDs for driver
-            "StudentNames": group['StudentName'].tolist() if 'StudentName' in group else [],
-            "TotalStudents": len(group),
+        unique_student_ids = list(set(group['doc_id'].tolist()))
+
+        # Update Student documents with the new friendly ID
+        for doc_id in unique_student_ids:
+            student_ref = db.collection("Students").document(doc_id)
+            batch.update(student_ref, {"BusID": str(friendly_bus_number)})
+
+        # Create the Bus manifest
+        bus_ref = db.collection("Buses").document(bus_doc_id)
+        batch.set(bus_ref, {
+            "SchoolID": numeric_search_id,
+            "BusNumber": friendly_bus_number,
+            "StudentList": unique_student_ids,
+            "StudentNames": list(set(group['StudentName'].tolist())) if 'StudentName' in group else [],
+            "TotalStudents": len(unique_student_ids),
             "LastUpdated": firestore.SERVER_TIMESTAMP
-        }
-        batch.set(bus_ref, bus_data)
+        })
 
     batch.commit()
-    print(f"Successfully re-clustered students for School {school_id}")
+    print(f"Clean optimization successful for school {numeric_search_id}. IDs start at 101.")
+
+# --- TRIGGERS ---
+
+@firestore_fn.on_document_created(document="Students/{studentId}")
+def on_student_added(event):
+    school_id = event.data.to_dict().get("SchoolID")
+    if school_id: reoptimize_school_routes(school_id)
+
+@firestore_fn.on_document_deleted(document="Students/{studentId}")
+def on_student_deleted(event):
+    # event.data contains the snapshot of the document BEFORE it was deleted
+    school_id = event.data.to_dict().get("SchoolID")
+    if school_id: reoptimize_school_routes(school_id)
+
+@firestore_fn.on_document_updated(document="Schools/{schoolId}")
+def on_fleet_changed(event):
+    school_id = event.data.after.id
+    reoptimize_school_routes(school_id)
