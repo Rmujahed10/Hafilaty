@@ -24,22 +24,47 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   }
 
   Future<void> _loadUserInfo() async {
+  try {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    DocumentSnapshot doc =
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    // 1. Get the cleaned phone number from the auth email
+    // Example: "0501234567@hafilatyapp.com" -> "0501234567"
+    final phone = user.email?.split('@')[0];
 
-    final firstName = doc['firstName'] ?? "";
-    final lastName = doc['lastName'] ?? "";
-    final userRole = doc['role'] ?? "";
+    if (phone == null) {
+      debugPrint("Error: Could not extract phone from email.");
+      return;
+    }
+
+    // 2. Fetch the document using the PHONE as the ID
+    DocumentSnapshot doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(phone)
+        .get();
+
+    if (!doc.exists) {
+      debugPrint("User document does not exist for phone: $phone");
+      setState(() => loading = false);
+      return;
+    }
+
+    // 3. Extract data safely
+    final data = doc.data() as Map<String, dynamic>;
+    final fName = data['firstName'] ?? "";
+    final lName = data['lastName'] ?? "";
+    final userRole = data['role'] ?? "";
 
     setState(() {
-      fullName = "$firstName $lastName";
+      fullName = "$fName $lName";
       role = userRole;
       loading = false;
     });
+  } catch (e) {
+    debugPrint("Error loading info: $e");
+    setState(() => loading = false);
   }
+}
 
   Future<void> _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
