@@ -29,11 +29,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(body: _buildBody());
-  }
-
   // Convert phone → Firebase email format
   String _convertToAuthEmail(String phone) {
     final cleanedPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
@@ -41,19 +36,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ----------------------------------------------------
-  // ROLE CHECK → Always navigate to /role_home
+  // ROLE CHECK → Using Phone Number as Doc ID
   // ----------------------------------------------------
-  // داخل ملف LoginScreen.dart
-
-  Future<void> _checkRoleAndNavigate(User user) async {
+  Future<void> _checkRoleAndNavigate(String cleanedPhone) async {
     try {
+      // UPDATED: Now searching the document by cleanedPhone instead of user.uid
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(cleanedPhone)
           .get();
 
       if (!doc.exists) {
-        _showError('خطأ: بيانات المستخدم غير موجودة.');
+        _showError('خطأ: بيانات المستخدم غير موجودة في قاعدة البيانات.');
         await FirebaseAuth.instance.signOut();
         return;
       }
@@ -67,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       print('Error during role check: $e');
-      _showError('حدث خطأ أثناء التحقق من صلاحيات المسؤول.');
+      _showError('حدث خطأ أثناء التحقق من البيانات.');
       await FirebaseAuth.instance.signOut();
     }
   }
@@ -78,9 +72,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final phone = _phoneController.text.trim();
+    final phoneRaw = _phoneController.text.trim();
     final password = _passwordController.text.trim();
-    final authEmail = _convertToAuthEmail(phone);
+    
+    // Clean the phone number to match the Document ID and Auth Email
+    final cleanedPhone = phoneRaw.replaceAll(RegExp(r'[^\d]'), '');
+    final authEmail = '$cleanedPhone@hafilatyapp.com';
 
     setState(() => _isLoading = true);
 
@@ -91,11 +88,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (credential.user != null) {
-        await _checkRoleAndNavigate(credential.user!);
+        // Pass the cleanedPhone to navigate using the phone-based Doc ID
+        await _checkRoleAndNavigate(cleanedPhone);
       }
     } on FirebaseAuthException catch (e) {
       String message = 'حدث خطأ في تسجيل الدخول.';
-      if (e.code == 'user-not-found' || e.code == 'wrong-password') {
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
         message = 'رقم الجوال أو كلمة المرور غير صحيحة.';
       } else if (e.code == 'too-many-requests') {
         message = 'تم حظر الحساب مؤقتاً بسبب محاولات خاطئة متكررة.';
@@ -110,13 +108,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(body: _buildBody());
   }
 
   // ----------------------------------------------------
-  // UI
+  // UI (Remains unchanged to preserve your design)
   // ----------------------------------------------------
   Widget _buildBody() {
     return Stack(
@@ -125,7 +127,6 @@ class _LoginScreenState extends State<LoginScreen> {
           height: MediaQuery.of(context).size.height * 0.4,
           color: _kDarkBlue,
         ),
-
         Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -143,9 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-
                 Form(key: _formKey, child: _buildLoginCard()),
-
                 TextButton(
                   onPressed: () {
                     Navigator.push(
@@ -180,7 +179,6 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.only(bottom: 30.0),
               child: Image.asset('assets/LaunchImage@3x.png', height: 100),
             ),
-
             _buildInputField(
               'رقم الجوال',
               _phoneController,
@@ -190,9 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? 'الرجاء إدخال رقم الجوال'
                   : null,
             ),
-
             const SizedBox(height: 20),
-
             _buildInputField(
               'كلمة المرور',
               _passwordController,
@@ -203,7 +199,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? 'الرجاء إدخال كلمة المرور'
                   : null,
             ),
-
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -211,10 +206,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Text('هل نسيت كلمة المرور؟'),
               ),
             ),
-
             const SizedBox(height: 10),
             _buildLoginButton(),
-
             const SizedBox(height: 20),
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -249,7 +242,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 8),
-
         TextFormField(
           controller: controller,
           keyboardType: type,
