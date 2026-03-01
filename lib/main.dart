@@ -10,6 +10,7 @@ import 'screens/ChooseRoleScreen.dart';
 import 'screens/RoleHomeScreen.dart';
 import 'screens/EditAccountScreen.dart';
 import 'screens/StudentsManagementScreen.dart';
+import 'screens/AdminHome.dart';
 // import 'screens/RegistrationScreen.dart'; // Optional: if you use named routes for it
 
 // --- 1. The Startup Logic ---
@@ -126,6 +127,7 @@ class HafilatyApp extends StatelessWidget {
           '/login': (context) => const LoginScreen(),
           '/choose_role': (context) => const ChooseRoleScreen(),
           '/role_home': (context) => const RoleHomeScreen(),
+          '/AdminHome': (context) => const AdminHome(), 
           '/edit_profile': (context) => const EditAccountScreen(),
           '/students_management': (context) => const StudentsManagementScreen(),
         },

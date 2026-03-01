@@ -38,30 +38,55 @@ class _LoginScreenState extends State<LoginScreen> {
   // ----------------------------------------------------
   // ROLE CHECK → Using Phone Number as Doc ID
   // ----------------------------------------------------
-  Future<void> _checkRoleAndNavigate(String cleanedPhone) async {
+Future<void> _checkRoleAndNavigate(String cleanedPhone) async {
     try {
-      // UPDATED: Now searching the document by cleanedPhone instead of user.uid
-      DocumentSnapshot doc = await FirebaseFirestore.instance
+      // 1. Fetch User Data using Phone as Doc ID
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(cleanedPhone)
           .get();
 
-      if (!doc.exists) {
-        _showError('خطأ: بيانات المستخدم غير موجودة في قاعدة البيانات.');
+      if (!userDoc.exists) {
+        _showError('خطأ: بيانات المستخدم غير موجودة.');
         await FirebaseAuth.instance.signOut();
         return;
       }
 
-      String role = doc.get('role') ?? 'user';
+      String role = userDoc.get('role') ?? 'user';
 
+      // 2. If Admin, fetch School Data
       if (role == 'admin') {
-        Navigator.of(context).pushReplacementNamed('/students_management');
+        String? schoolId = userDoc.get('schoolId');
+        
+        if (schoolId != null && schoolId.isNotEmpty) {
+          DocumentSnapshot schoolDoc = await FirebaseFirestore.instance
+              .collection('Schools')
+              .doc(schoolId)
+              .get();
+
+          if (schoolDoc.exists) {
+            // Print school name to console for debugging
+            print('Welcome Admin of: ${schoolDoc.get('School Name')}');
+            
+            Navigator.of(context).pushReplacementNamed(
+              '/AdminHome',
+              arguments: schoolDoc.data(), // Passing school data as an argument
+            );
+          } else {
+            _showError('خطأ: لم يتم العثور على بيانات المدرسة المرتبطة.');
+            await FirebaseAuth.instance.signOut();
+          }
+        } else {
+          _showError('خطأ: الحساب غير مرتبط بكود مدرسة.');
+          await FirebaseAuth.instance.signOut();
+        }
       } else {
+        // 3. Regular Role Navigation
         Navigator.of(context).pushReplacementNamed('/role_home');
       }
     } catch (e) {
-      print('Error during role check: $e');
-      _showError('حدث خطأ أثناء التحقق من البيانات.');
+      print('Error during role/school check: $e');
+      _showError('حدث خطأ أثناء التحقق من الصلاحيات.');
       await FirebaseAuth.instance.signOut();
     }
   }
