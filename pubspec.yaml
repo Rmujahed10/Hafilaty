@@ -20,7 +20,9 @@ dependencies:
   cloud_firestore: ^4.15.0
   firebase_database: ^10.5.7
   cupertino_icons: ^1.0.8
-
+  easy_localization: ^3.0.7
+  translator: ^0.1.7
+  
 # =================================================================
 # 2. DEV DEPENDENCIES (Packages used for development/tools)
 # =================================================================
@@ -45,7 +47,8 @@ flutter: # <--- ROOT LEVEL (Column 1)
   uses-material-design: true # <--- Indented 2 spaces
 
   assets: # <--- Indented 2 spaces
-    - assets/ # <--- Indented 4 spaces (Ensure your images are here)
+    - assets/
+    - assets/translations/ # <--- Indented 4 spaces (Ensure your images are here)
 
   fonts: # <--- Indented 2 spaces
     - family: HafilatyArabic # <--- Indented 4 spaces

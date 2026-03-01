@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart'; // 1. استيراد المكتبة
 
 import 'ChooseRoleScreen.dart';
 
-// --- Color Constants ---
 const Color _kDarkBlue = Color(0xFF0D1B36);
 const Color _kGreenAccent = Color(0xFF6A994E);
 
@@ -29,53 +29,40 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Convert phone → Firebase email format
   String _convertToAuthEmail(String phone) {
     final cleanedPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
     return '$cleanedPhone@hafilatyapp.com';
   }
 
-  // ----------------------------------------------------
-  // ROLE CHECK → Using Phone Number as Doc ID
-  // ----------------------------------------------------
   Future<void> _checkRoleAndNavigate(String cleanedPhone) async {
     try {
-      // UPDATED: Now searching the document by cleanedPhone instead of user.uid
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(cleanedPhone)
           .get();
 
       if (!doc.exists) {
-        _showError('خطأ: بيانات المستخدم غير موجودة في قاعدة البيانات.');
+        _showError('error_user_not_found'.tr()); // ترجمة الخطأ
         await FirebaseAuth.instance.signOut();
         return;
       }
 
       String role = doc.get('role') ?? 'user';
-
       if (role == 'admin') {
         Navigator.of(context).pushReplacementNamed('/students_management');
       } else {
         Navigator.of(context).pushReplacementNamed('/role_home');
       }
     } catch (e) {
-      print('Error during role check: $e');
-      _showError('حدث خطأ أثناء التحقق من البيانات.');
-      await FirebaseAuth.instance.signOut();
+      _showError('حدث خطأ أثناء التحقق');
     }
   }
 
-  // ----------------------------------------------------
-  // LOGIN LOGIC
-  // ----------------------------------------------------
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     final phoneRaw = _phoneController.text.trim();
     final password = _passwordController.text.trim();
-    
-    // Clean the phone number to match the Document ID and Auth Email
     final cleanedPhone = phoneRaw.replaceAll(RegExp(r'[^\d]'), '');
     final authEmail = '$cleanedPhone@hafilatyapp.com';
 
@@ -88,20 +75,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (credential.user != null) {
-        // Pass the cleanedPhone to navigate using the phone-based Doc ID
         await _checkRoleAndNavigate(cleanedPhone);
       }
     } on FirebaseAuthException catch (e) {
-      String message = 'حدث خطأ في تسجيل الدخول.';
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        message = 'رقم الجوال أو كلمة المرور غير صحيحة.';
-      } else if (e.code == 'too-many-requests') {
-        message = 'تم حظر الحساب مؤقتاً بسبب محاولات خاطئة متكررة.';
-      }
+      String message = 'error_wrong_credentials'.tr();
       _showError(message);
-    } catch (e) {
-      print(e);
-      _showError('حدث خطأ غير متوقع.');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -109,7 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -117,9 +97,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(body: _buildBody());
   }
 
-  // ----------------------------------------------------
-  // UI (Remains unchanged to preserve your design)
-  // ----------------------------------------------------
   Widget _buildBody() {
     return Stack(
       children: <Widget>[
@@ -133,11 +110,11 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 40.0),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 40.0),
                   child: Text(
-                    'تسجيل الدخول',
-                    style: TextStyle(
+                    'login_title'.tr(), // استخدام الترجمة
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -154,9 +131,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     );
                   },
-                  child: const Text(
-                    'تسجيل حساب جديد',
-                    style: TextStyle(color: _kDarkBlue),
+                  child: Text(
+                    'register_new_account'.tr(), // استخدام الترجمة
+                    style: const TextStyle(color: _kDarkBlue),
                   ),
                 ),
               ],
@@ -180,42 +157,54 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Image.asset('assets/LaunchImage@3x.png', height: 100),
             ),
             _buildInputField(
-              'رقم الجوال',
+              'Phone Number'.tr(),
               _phoneController,
               Icons.phone,
               TextInputType.phone,
               validator: (value) => (value == null || value.isEmpty)
-                  ? 'الرجاء إدخال رقم الجوال'
+                  ? 'phone_required'.tr()
                   : null,
             ),
             const SizedBox(height: 20),
             _buildInputField(
-              'كلمة المرور',
+              'Password'.tr(),
               _passwordController,
               Icons.lock,
               TextInputType.text,
               isPassword: true,
               validator: (value) => (value == null || value.isEmpty)
-                  ? 'الرجاء إدخال كلمة المرور'
+                  ? 'password_required'.tr()
                   : null,
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: context.locale.languageCode == 'ar'
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
               child: TextButton(
                 onPressed: () {},
-                child: const Text('هل نسيت كلمة المرور؟'),
+                child: Text('Forgot Password?'.tr()),
               ),
             ),
             const SizedBox(height: 10),
             _buildLoginButton(),
             const SizedBox(height: 20),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('اللغة / Language'),
-                SizedBox(width: 8),
-                Icon(Icons.language),
-              ],
+            // زر تبديل اللغة المطور
+            InkWell(
+              onTap: () {
+                if (context.locale.languageCode == 'ar') {
+                  context.setLocale(const Locale('en'));
+                } else {
+                  context.setLocale(const Locale('ar'));
+                }
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('اللغة / Language'),
+                  SizedBox(width: 8),
+                  Icon(Icons.language),
+                ],
+              ),
             ),
           ],
         ),
@@ -232,7 +221,8 @@ class _LoginScreenState extends State<LoginScreen> {
     String? Function(String?)? validator,
   }) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment:
+          CrossAxisAlignment.start, // سيضبط نفسه حسب اتجاه اللغة
       children: [
         Text(
           label,
@@ -246,11 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: controller,
           keyboardType: type,
           obscureText: isPassword,
-          textAlign: TextAlign.right,
           validator: validator,
-          inputFormatters: type == TextInputType.phone
-              ? [FilteringTextInputFormatter.digitsOnly]
-              : null,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[200],
@@ -274,34 +260,19 @@ class _LoginScreenState extends State<LoginScreen> {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [_kDarkBlue, _kGreenAccent],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        gradient: const LinearGradient(colors: [_kDarkBlue, _kGreenAccent]),
       ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _handleLogin,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 3,
-                ),
-              )
-            : const Text(
-                'تسجيل الدخول',
-                style: TextStyle(
+            ? const CircularProgressIndicator(color: Colors.white)
+            : Text(
+                'Login'.tr(),
+                style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
                   fontWeight: FontWeight.bold,

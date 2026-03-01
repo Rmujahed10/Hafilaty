@@ -1,77 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 1. Added for Auth check
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart'; // استيراد المكتبة
 import 'firebase_options.dart';
 
-// --- Import all your screens ---
-// Make sure these paths match your folder structure!
+// --- استيراد الشاشات ---
 import 'screens/LoginScreen.dart';
 import 'screens/ChooseRoleScreen.dart';
 import 'screens/RoleHomeScreen.dart';
 import 'screens/EditAccountScreen.dart';
 import 'screens/StudentsManagementScreen.dart';
-// import 'screens/RegistrationScreen.dart'; // Optional: if you use named routes for it
-
-// --- 1. The Startup Logic ---
-Future<Widget> _determineStartScreen() async {
-  // Wait a moment for the Splash Screen effect (Optional)
-  await Future.delayed(const Duration(seconds: 2));
-
-  // 2. CHECK AUTH STATE: Is a user already logged in?
-  User? user = FirebaseAuth.instance.currentUser;
-
-  if (user != null) {
-    // User is logged in -> Go to Home
-    return const RoleHomeScreen();
-  } else {
-    // No user -> Go to Login
-    return const LoginScreen();
-  }
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
+  // تهيئة فيربايس
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  runApp(const HafilatyApp());
+  // تهيئة مكتبة الترجمة
+  await EasyLocalization.ensureInitialized();
+
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [Locale('ar'), Locale('en')],
+      path: 'assets/translations', // تأكد من إنشاء المجلد والملفات فيه
+      fallbackLocale: const Locale('ar'),
+      child: const HafilatyApp(),
+    ),
+  );
 }
 
-// --- 2. Splash Screen ---
+// --- 1. منطق تحديد الشاشة الأولى ---
+Future<Widget> _determineStartScreen() async {
+  await Future.delayed(const Duration(seconds: 2));
+  User? user = FirebaseAuth.instance.currentUser;
+
+  if (user != null) {
+    return const RoleHomeScreen();
+  } else {
+    return const LoginScreen();
+  }
+}
+
+// --- 2. شاشة التحميل (Splash Screen) ---
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0D1B36), // Your App's Dark Blue
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1B36),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.directions_bus,
-              size: 80,
-              color: Colors.white,
-            ), // Simple Logo
-            SizedBox(height: 20),
+            const Icon(Icons.directions_bus, size: 80, color: Colors.white),
+            const SizedBox(height: 20),
             Text(
-              'حافلاتي', // Hafilaty
-              style: TextStyle(
+              'login_title'.tr(), // استخدام الترجمة حتى في السلاش
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                fontFamily: 'HafilatyArabic',
               ),
             ),
-            SizedBox(height: 30),
-            CircularProgressIndicator(color: Color(0xFF6A994E)), // Green Accent
-            SizedBox(height: 10),
-            Text(
-              'جاري التحميل...',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
-            ),
+            const SizedBox(height: 30),
+            const CircularProgressIndicator(color: Color(0xFF6A994E)),
           ],
         ),
       ),
@@ -79,57 +73,53 @@ class SplashScreen extends StatelessWidget {
   }
 }
 
-// --- 3. The App Widget ---
+// --- 3. ويدجت التطبيق الرئيسية ---
 class HafilatyApp extends StatelessWidget {
   const HafilatyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl, // Force RTL for Arabic
-      child: MaterialApp(
-        title: 'Hafilaty',
-        debugShowCheckedModeBanner: false, // Removes the "Debug" banner
-        theme: ThemeData(
-          primaryColor: const Color(0xFF0D1B36),
-          colorScheme: ColorScheme.fromSwatch().copyWith(
-            secondary: const Color(0xFF6A994E),
-          ),
-          fontFamily: 'HafilatyArabic', // Use a nice Arabic font if you have it
+    // تم حذف Directionality اليدوي هنا لأنه يسبب الخطأ
+    // MaterialApp ستقوم بالمهمة بناءً على لغة الـ context
+    return MaterialApp(
+      title: 'Hafilaty',
+      debugShowCheckedModeBanner: false,
+
+      // إعدادات الترجمة والاتجاه التلقائي
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
+
+      theme: ThemeData(
+        primaryColor: const Color(0xFF0D1B36),
+        colorScheme: ColorScheme.fromSwatch().copyWith(
+          secondary: const Color(0xFF6A994E),
         ),
+        fontFamily: context.locale.languageCode == 'ar'
+            ? 'HafilatyArabic' // اسم الخط العربي في pubspec
+            : 'Roboto',
+      ),
 
-        // ** The Smart Home Property **
-        // Instead of string routes, we decide the WIDGET here.
-        home: FutureBuilder<Widget>(
-          future: _determineStartScreen(),
-          builder: (context, snapshot) {
-            // 1. While loading, show Splash
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SplashScreen();
-            }
-
-            // 2. If valid screen determined, return it
-            if (snapshot.hasData) {
-              return snapshot.data!;
-            }
-
-            // 3. Error case fallback
-            return const Scaffold(
-              body: Center(child: Text("Error loading app")),
-            );
-          },
-        ),
-
-        // ** Named Routes **
-        // Use these for navigation within the app (e.g., Navigator.pushNamed)
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/choose_role': (context) => const ChooseRoleScreen(),
-          '/role_home': (context) => const RoleHomeScreen(),
-          '/edit_profile': (context) => const EditAccountScreen(),
-          '/students_management': (context) => const StudentsManagementScreen(),
+      home: FutureBuilder<Widget>(
+        future: _determineStartScreen(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SplashScreen();
+          }
+          if (snapshot.hasData) {
+            return snapshot.data!;
+          }
+          return const Scaffold(body: Center(child: Text("Error loading app")));
         },
       ),
+
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/choose_role': (context) => const ChooseRoleScreen(),
+        '/role_home': (context) => const RoleHomeScreen(),
+        '/edit_profile': (context) => const EditAccountScreen(),
+        '/students_management': (context) => const StudentsManagementScreen(),
+      },
     );
   }
 }

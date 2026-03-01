@@ -96,7 +96,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
           itemBuilder: (context, index) {
             final data = students[index].data() as Map<String, dynamic>;
             return _buildStudentCard(
-              (data['StudentName'] ?? 'اسم غير متوفر').toString(),
+              (data['StudentName_ar'] ?? 'اسم غير متوفر').toString(),
               students[index].id,
             );
           },
@@ -225,7 +225,11 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
         ),
 
         BottomNavigationBarItem(
-          icon: Image.asset('assets/ProfileIcon.png', width: 28, height: 28),
+          icon: Image.asset(
+            'assets/StudentMangeIcon.png',
+            width: 28,
+            height: 28,
+          ),
           label: '',
         ),
       ],

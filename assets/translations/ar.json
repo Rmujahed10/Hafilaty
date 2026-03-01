@@ -1,0 +1,14 @@
+{
+  
+  "login_title": "تسجيل الدخول",
+  "phone Number": "رقم الجوال",
+  "password": "كلمة المرور",
+  "Forgot Password?": "هل نسيت كلمة المرور؟",
+  "Login": "تسجيل الدخول",
+  "register_new_account": "تسجيل حساب جديد",
+  "phone_required": "الرجاء إدخال رقم الجوال",
+  "password_required": "الرجاء إدخال كلمة المرور",
+  "error_user_not_found": "بيانات المستخدم غير موجودة في قاعدة البيانات.",
+  "error_wrong_credentials": "رقم الجوال أو كلمة المرور غير صحيحة."
+
+}

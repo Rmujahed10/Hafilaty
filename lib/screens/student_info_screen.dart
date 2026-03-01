@@ -4,72 +4,75 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 const Color _kBlue = Color(0xFF0D1B36);
 const Color _kYellow = Color(0xFFFFC83D);
 
-class StudentInfoScreen extends StatelessWidget {
+class StudentInfoScreen extends StatefulWidget {
   final String studentDocId;
   const StudentInfoScreen({super.key, required this.studentDocId});
 
-  DocumentReference get _ref =>
-      FirebaseFirestore.instance.collection('Students').doc(studentDocId);
+  @override
+  State<StudentInfoScreen> createState() => _StudentInfoScreenState();
+}
+
+class _StudentInfoScreenState extends State<StudentInfoScreen> {
+  bool isArabic = true;
+
+  DocumentReference get _ref => FirebaseFirestore.instance
+      .collection('Students')
+      .doc(widget.studentDocId);
 
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: _kBlue, 
+        backgroundColor: _kBlue,
         body: StreamBuilder<DocumentSnapshot>(
           stream: _ref.snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Center(
-                  child: CircularProgressIndicator(color: Colors.white));
+                child: CircularProgressIndicator(color: Colors.white),
+              );
             }
 
             final data = snapshot.data!.data() as Map<String, dynamic>;
 
-           return SafeArea(
-  child: Stack(
-    children: [
-
-      Positioned(
-        top: 8,
-        left: 0,
-        right: 0,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(
-                  Icons.chevron_left,
-                  color: Colors.white,
-                  size: 30,
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.language,
-                  color: Colors.white,
-                  size: 26,
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-
-              
-            ],
-          ),
-        ),
-      ),
-
-                  
+            return SafeArea(
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 8,
+                    left: 12,
+                    right: 12,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // language icon
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              isArabic = !isArabic;
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.language,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                        // return button
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(
+                            isArabic
+                                ? Icons.chevron_right
+                                : Icons.chevron_right,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Align(
                     alignment: Alignment.center,
                     child: ConstrainedBox(
@@ -78,7 +81,7 @@ class StudentInfoScreen extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 20),
                         padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
                         decoration: BoxDecoration(
-                          color: Colors.white, 
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(28),
                           boxShadow: [
                             BoxShadow(
@@ -89,54 +92,61 @@ class StudentInfoScreen extends StatelessWidget {
                           ],
                         ),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min, 
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-
-                            /// زر التعديل
                             Row(
                               children: [
                                 const Spacer(),
-                                Icon(Icons.edit,
-                                    color: Colors.grey.shade500),
+                                Icon(Icons.edit, color: Colors.grey.shade500),
                               ],
                             ),
-
                             const SizedBox(height: 10),
-
-                            /// صورة الطالب
                             const CircleAvatar(
                               radius: 45,
                               backgroundColor: _kYellow,
-                              child: Icon(Icons.person,
-                                  size: 50, color: Colors.white),
+                              child: Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Colors.white,
+                              ),
                             ),
-
                             const SizedBox(height: 14),
-
                             Text(
-                              data['StudentName'] ?? '',
+                              isArabic
+                                  ? (data['StudentNameAr'] ??
+                                        data['StudentName_ar'] ??
+                                        'اسم غير معروف')
+                                  : (data['StudentNameEn'] ??
+                                        data['StudentName'] ??
+                                        'Unknown Name'),
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-
                             const SizedBox(height: 20),
-
-                            _infoBox("رقم الطالب التعريفي",
-                                data['StudentID']),
-                            _infoBox("خطوط الطول",
-                                data['Latitude']),
-                            _infoBox("خطوط العرض",
-                                data['Longitude']),
-                            _infoBox("رقم المدرسة التعريفي",
-                                data['SchoolID']),
-                            _infoBox("رقم الباص التعريفي",
-                                data['BusID']),
-
+                            // استخدام نصوص متغيرة بناءً على اللغة
+                            _infoBox(
+                              isArabic ? "رقم الطالب التعريفي" : "Student ID",
+                              data['StudentID'],
+                            ),
+                            _infoBox(
+                              isArabic ? "خطوط الطول" : "Latitude",
+                              data['Latitude'],
+                            ),
+                            _infoBox(
+                              isArabic ? "خطوط العرض" : "Longitude",
+                              data['Longitude'],
+                            ),
+                            _infoBox(
+                              isArabic ? "رقم المدرسة التعريفي" : "School ID",
+                              data['SchoolID'],
+                            ),
+                            _infoBox(
+                              isArabic ? "رقم الباص التعريفي" : "Bus ID",
+                              data['BusID'],
+                            ),
                             const SizedBox(height: 25),
-
-                            /// زر الحذف
                             InkWell(
                               onTap: () async {
                                 await _ref.delete();
@@ -149,8 +159,11 @@ class StudentInfoScreen extends StatelessWidget {
                                   color: Colors.red,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.delete,
-                                    color: Colors.white, size: 28),
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
                               ),
                             ),
                           ],
@@ -167,36 +180,27 @@ class StudentInfoScreen extends StatelessWidget {
     );
   }
 
- Widget _infoBox(String label, dynamic value) {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFBDBDBD)),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween, 
-      children: [
-
-        Text(
-          "$label :",
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: _kBlue,
+  Widget _infoBox(String label, dynamic value) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBDBDBD)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            "$label :",
+            style: const TextStyle(fontWeight: FontWeight.bold, color: _kBlue),
           ),
-        ),
-
-        Text(
-          value?.toString() ?? '',
-          textAlign: TextAlign.left,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
+          Text(
+            value?.toString() ?? '',
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-        ),
-        
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 }
