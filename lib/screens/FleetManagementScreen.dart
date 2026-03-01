@@ -15,7 +15,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 1, 14, 72),
+        backgroundColor: Color(0xFF0D1B36),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context), // ✅ Back يرجع
