@@ -3,8 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- IMPORT YOUR VALIDATOR LOGIC HERE ---
-// Make sure 'hafilaty' matches the name: in your pubspec.yaml
+// --- IMPORT VALIDATOR LOGIC ---
 import 'package:hafilaty/utils/validators.dart'; 
 
 // --- Constants ---
@@ -104,7 +103,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     final role = widget.role;
 
     Map<String, dynamic> base = {
-      "uid": uid,
+      "uid": uid, // Keep auth UID for security rules reference
       "role": role,
       "firstName": firstName.text.trim(),
       "lastName": lastName.text.trim(),
@@ -131,7 +130,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     if (role == "admin") {
       base.addAll({
-        "school": school.text.trim(),
+        "schoolId": school.text.trim(), // Stored as schoolId for clear DB mapping
         "birthDate": birthDate.text.trim(),
       });
     }
@@ -149,9 +148,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     setState(() => loading = true);
 
-    final authEmail = convertToAuthEmail(phone.text);
+    // Clean phone for both Auth Email and Document ID
+    final cleanedPhone = phone.text.replaceAll(RegExp(r'[^\d]'), '');
+    final authEmail = '$cleanedPhone@hafilatyapp.com';
 
     try {
+      // 1. If Admin, verify that the School ID exists in the 'schools' collection
+      if (widget.role == "admin") {
+        final schoolDoc = await FirebaseFirestore.instance
+            .collection("Schools")
+            .doc(school.text.trim())
+            .get();
+
+        if (!schoolDoc.exists) {
+          setState(() => loading = false);
+          showError("كود المدرسة غير صحيح، يرجى التأكد من الكود.");
+          return;
+        }
+      }
+
+      // 2. Create Auth Account
       final userCred = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
         email: authEmail,
@@ -160,9 +176,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       final uid = userCred.user!.uid;
 
+      // 3. Save to Firestore using cleaned PHONE as the Document ID
       await FirebaseFirestore.instance
           .collection("users")
-          .doc(uid)
+          .doc(cleanedPhone) 
           .set(buildUserData(uid));
 
       if (!mounted) return;
@@ -211,7 +228,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ];
       case "admin":
         return [
-          buildField("اسم المدرسة", school, Icons.school),
+          buildField(
+            "كود المدرسة (School ID)", 
+            school, 
+            Icons.domain_verification, 
+            hint: "أدخل الكود الخاص بمدرستك"
+          ),
           buildField(
             "تاريخ الميلاد",
             birthDate,
@@ -225,7 +247,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return [];
   }
 
-  // --- Smart Field Widget (Updated with Validators) ---
+  // --- Smart Field Widget ---
   Widget buildField(
     String label,
     TextEditingController controller,
@@ -237,7 +259,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     String? hint,
   }) {
     return Column(
-      // Ensure labels start from the Right side
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -248,48 +269,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         TextFormField(
           controller: controller,
           obscureText: isPassword,
-          // Validates as you type
           autovalidateMode: AutovalidateMode.onUserInteraction,
-          
           readOnly: isReadOnly,
           onTap: onTap,
-          
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
           maxLength: isNumber ? 10 : null,
           inputFormatters: isNumber
               ? [FilteringTextInputFormatter.digitsOnly]
               : [],
-
-          // --- MODIFIED VALIDATOR SECTION ---
           validator: (v) {
-            // 1. Logic for Numeric Fields (ID, Phone, License)
-            // This calls your tested Unit Test logic
             if (isNumber) {
               return Validators.validateTenDigitNumber(v, label);
             }
-            
-            // 2. Logic for Email
-            // This calls your tested Unit Test logic
             if (!isNumber && !isPassword && label.contains("البريد")) {
               return Validators.validateEmail(v);
             }
-
-            // 3. Fallback for other text fields (Name, City, etc.)
             if (v == null || v.isEmpty) return "$label مطلوب";
-            
             return null;
           },
-          // ----------------------------------
-
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[200],
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-            
-            // Shows 0/10 counter only for numbers
             counterText: isNumber ? null : "",
-            
             suffixIcon: Icon(icon, color: kAccent),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -314,31 +317,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ? "إنشاء حساب سائق"
             : "إنشاء حساب مشرف";
 
-    // 1. Force RTL Direction
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: kDarkBlue,
         body: Stack(
           children: [
-            // --- Blue Header ---
             Container(
               height: MediaQuery.of(context).size.height * 0.28,
               padding: const EdgeInsets.only(top: 40, left: 15, right: 15),
               color: kDarkBlue,
               child: Column(
                 children: [
-                  // Back Button (Automatically flips in RTL)
                   Align(
-                    alignment: Alignment.centerLeft, // RTL: Start = Right
+                    alignment: Alignment.centerLeft, 
                     child: IconButton(
                       icon: const Icon(Icons.arrow_forward, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),
-
                   const SizedBox(height: 5),
-
                   Text(
                     title,
                     style: const TextStyle(
@@ -351,8 +349,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 ],
               ),
             ),
-
-            // --- White Form Container ---
             Container(
               margin: EdgeInsets.only(
                 top: MediaQuery.of(context).size.height * 0.23,
@@ -369,7 +365,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     children: [
                       buildField("الاسم الأول", firstName, Icons.person, hint: "أحمد"),
                       buildField("الاسم الأخير", lastName, Icons.person, hint: "الغامدي"),
-                      
                       buildField(
                         "رقم الهوية",
                         nationalId,
@@ -377,9 +372,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         isNumber: true,
                         hint: "1xxxxxxxxx"
                       ),
-
                       ...roleFields(),
-
                       buildField(
                         "رقم الجوال",
                         phone,
@@ -387,9 +380,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         isNumber: true,
                         hint: "05xxxxxxxx"
                       ),
-                      
                       buildField("البريد الإلكتروني", email, Icons.email, hint: "example@mail.com"),
-
                       buildField(
                         "كلمة المرور",
                         password,
@@ -402,9 +393,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         Icons.lock,
                         isPassword: true,
                       ),
-
                       const SizedBox(height: 20),
-
                       ElevatedButton(
                         onPressed: loading ? null : register,
                         style: ElevatedButton.styleFrom(
@@ -425,7 +414,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                 ),
                               ),
                       ),
-                      
                       const SizedBox(height: 20),
                     ],
                   ),
