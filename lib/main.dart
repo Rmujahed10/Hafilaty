@@ -128,7 +128,7 @@ class HafilatyApp extends StatelessWidget {
           '/login': (context) => const LoginScreen(),
           '/choose_role': (context) => const ChooseRoleScreen(),
           '/role_home': (context) => const RoleHomeScreen(),
-          '/AdminHome': (context) => const AdminHome(), 
+          '/AdminHome': (context) => const AdminHome(),
           '/edit_profile': (context) => const EditAccountScreen(),
           '/students_management': (context) => const StudentsManagementScreen(),
           '/bus_management': (context) => const BusManagementScreen(),
