@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'FleetManagementScreen.dart'; 
 
 const Color kDarkBlue = Color(0xFF0D1B36);
 const Color kAccent = Color(0xFF6A994E);
@@ -99,14 +100,25 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
       ),
     );
   }
-
-  Widget _buildBusCard(
-    int busNumber,
-    int totalStudents,
-    int capacity,
-    bool isFull,
-  ) {
-    return Container(
+Widget _buildBusCard(
+  int busNumber,
+  int totalStudents,
+  int capacity,
+  bool isFull,
+) {
+  return InkWell(
+    borderRadius: BorderRadius.circular(22),
+    onTap: () {
+  if (busNumber == 101) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FleetManagementScreen(),
+      ),
+    );
+  }
+},
+    child: Container(
       margin: const EdgeInsets.only(bottom: 18),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -132,7 +144,6 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
             ),
           ),
           const SizedBox(width: 16),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,12 +155,9 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
                     color: isFull ? Colors.red : kAccent,
                     borderRadius: BorderRadius.circular(12),
@@ -162,9 +170,7 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 Row(
                   children: [
                     const Icon(Icons.groups, size: 18),
@@ -180,6 +186,6 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
           ),
         ],
       ),
-    );
-  }
-}
+    ),
+  );
+}}
