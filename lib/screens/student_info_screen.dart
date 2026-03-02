@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// --- Color Constants ---
 const Color _kBlue = Color(0xFF0D1B36);
 const Color _kYellow = Color(0xFFFFC83D);
 
@@ -39,40 +40,46 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
             return SafeArea(
               child: Stack(
                 children: [
+                  // --- HEADER ICONS SECTION ---
                   Positioned(
                     top: 8,
                     left: 12,
                     right: 12,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // language icon
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              isArabic = !isArabic;
-                            });
-                          },
-                          icon: const Icon(
-                            Icons.language,
-                            color: Colors.white,
-                            size: 26,
+                    child: Directionality(
+                      // Force LTR for the header only to keep icon positions fixed
+                      textDirection: TextDirection.ltr,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Language icon - FIXED AT LEFT
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                isArabic = !isArabic;
+                              });
+                            },
+                            icon: const Icon(
+                              Icons.language,
+                              color: Colors.white,
+                              size: 26,
+                            ),
                           ),
-                        ),
-                        // return button
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: Icon(
-                            isArabic
-                                ? Icons.chevron_right
-                                : Icons.chevron_right,
-                            color: Colors.white,
-                            size: 30,
+                          // Back button - FIXED AT RIGHT
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(
+                              // Adjust chevron direction based on the current language
+                              isArabic ? Icons.chevron_right : Icons.chevron_left,
+                              color: Colors.white,
+                              size: 30,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
+
+                  // --- STUDENT INFO CARD ---
                   Align(
                     alignment: Alignment.center,
                     child: ConstrainedBox(
@@ -125,7 +132,8 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // استخدام نصوص متغيرة بناءً على اللغة
+                            
+                            // Info Boxes
                             _infoBox(
                               isArabic ? "رقم الطالب التعريفي" : "Student ID",
                               data['StudentID'],
@@ -146,7 +154,10 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
                               isArabic ? "رقم الباص التعريفي" : "Bus ID",
                               data['BusID'],
                             ),
+                            
                             const SizedBox(height: 25),
+
+                            // Delete Action
                             InkWell(
                               onTap: () async {
                                 await _ref.delete();

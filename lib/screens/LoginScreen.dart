@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       String role = doc.get('role') ?? 'user';
       if (role == 'admin') {
-        Navigator.of(context).pushReplacementNamed('/students_management');
+        Navigator.of(context).pushReplacementNamed('/AdminHome');
       } else {
         Navigator.of(context).pushReplacementNamed('/role_home');
       }

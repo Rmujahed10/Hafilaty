@@ -9,7 +9,9 @@ import 'screens/LoginScreen.dart';
 import 'screens/ChooseRoleScreen.dart';
 import 'screens/RoleHomeScreen.dart';
 import 'screens/EditAccountScreen.dart';
+import 'screens/AdminHome.dart';
 import 'screens/StudentsManagementScreen.dart';
+import 'screens/BusManagementScreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -119,6 +121,8 @@ class HafilatyApp extends StatelessWidget {
         '/role_home': (context) => const RoleHomeScreen(),
         '/edit_profile': (context) => const EditAccountScreen(),
         '/students_management': (context) => const StudentsManagementScreen(),
+        '/AdminHome': (context) => const AdminHome(),
+        '/bus_management': (context) => const BusManagementScreen(),
       },
     );
   }

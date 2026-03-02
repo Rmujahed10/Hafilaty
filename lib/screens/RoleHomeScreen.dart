@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// --- Color Constants ---
 const Color kDarkBlue = Color(0xFF0D1B36);
 const Color kAccent = Color(0xFF6A994E);
+const Color kLightGrey = Color(0xFFF5F5F5);
 
 class RoleHomeScreen extends StatefulWidget {
   const RoleHomeScreen({super.key});
@@ -24,365 +26,247 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   }
 
   Future<void> _loadUserInfo() async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-    // 1. Get the cleaned phone number from the auth email
-    // Example: "0501234567@hafilatyapp.com" -> "0501234567"
-    final phone = user.email?.split('@')[0];
+      // Derived phone from email as per your custom auth system
+      final phone = user.email?.split('@')[0];
 
-    if (phone == null) {
-      debugPrint("Error: Could not extract phone from email.");
-      return;
-    }
+      if (phone == null) return;
 
-    // 2. Fetch the document using the PHONE as the ID
-    DocumentSnapshot doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(phone)
-        .get();
+      DocumentSnapshot doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(phone)
+          .get();
 
-    if (!doc.exists) {
-      debugPrint("User document does not exist for phone: $phone");
+      if (!doc.exists) {
+        setState(() => loading = false);
+        return;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+      setState(() {
+        fullName = "${data['firstName'] ?? ""} ${data['lastName'] ?? ""}";
+        role = data['role'] ?? "";
+        loading = false;
+      });
+    } catch (e) {
+      debugPrint("Error loading info: $e");
       setState(() => loading = false);
-      return;
     }
-
-    // 3. Extract data safely
-    final data = doc.data() as Map<String, dynamic>;
-    final fName = data['firstName'] ?? "";
-    final lName = data['lastName'] ?? "";
-    final userRole = data['role'] ?? "";
-
-    setState(() {
-      fullName = "$fName $lName";
-      role = userRole;
-      loading = false;
-    });
-  } catch (e) {
-    debugPrint("Error loading info: $e");
-    setState(() => loading = false);
   }
-}
 
   Future<void> _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
+
   Future<void> _confirmDeleteAccount(BuildContext context) async {
-  final bool? confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) {
-      return Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('حذف الحساب'),
-          content: const Text(
-            'هل أنت متأكد أنك تريد حذف الحساب نهائيًا؟ لا يمكن التراجع عن هذه العملية.',
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('حذف الحساب'),
+            content: const Text(
+              'هل أنت متأكد أنك تريد حذف الحساب نهائيًا؟ لا يمكن التراجع عن هذه العملية.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('إلغاء'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('حذف', style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف'),
-            ),
-          ],
-        ),
+        );
+      },
+    );
+
+    if (confirm == true) {
+      await _deleteAccount(context);
+    }
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final phone = user.email?.split('@')[0];
+
+      // 1) Delete Firestore data using phone number as Doc ID
+      await FirebaseFirestore.instance.collection('users').doc(phone).delete();
+
+      // 2) Delete Auth account
+      await user.delete();
+
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى تسجيل الدخول مرة أخرى لحذف الحساب أمنياً')),
       );
-    },
-  );
-
-  if (confirm == true) {
-    await _deleteAccount(context);
+    }
   }
-}
-
-Future<void> _deleteAccount(BuildContext context) async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    // تخزين uid قبل الحذف
-    final uid = user.uid;
-
-    // 1) حذف بيانات المستخدم من Firestore
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .delete();
-
-    // 2) حذف الحساب من Firebase Auth
-    await user.delete();
-
-    // 3) الذهاب لصفحة تسجيل الدخول
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/login',
-      (route) => false,
-    );
-  } on FirebaseAuthException catch (e) {
-    // أحيانًا Firebase يطلب "تسجيل دخول حديث" قبل الحذف
-    debugPrint('Auth delete error: ${e.code} - ${e.message}');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('فشل حذف الحساب. يرجى تسجيل الدخول مرة أخرى ثم المحاولة.'),
-      ),
-    );
-  } catch (e) {
-    debugPrint('Delete account error: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('حدث خطأ أثناء حذف الحساب.')),
-    );
-  }
-}
-
-
-  
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF7F7F7),
-        appBar: AppBar(
-          backgroundColor: kDarkBlue,
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white),
-              onPressed: () => _signOut(context),
-            ),
-          ],
-          leading: const Padding(
-            padding: EdgeInsets.only(left: 12),
-            child: Icon(Icons.language, color: Colors.white),
-          ),
-        ),
-
-        body: Stack(
+        backgroundColor: Colors.white,
+        body: Column(
           children: [
-            // BACKGROUND: blue on top, grey under
-            Column(
-              children: [
-                Container(
-                  height: 230,
-                  color: kDarkBlue,
+            // Sync Header with AdminHome
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 30),
+                    // Profile Header
+                    _buildProfileCircle(),
+                    const SizedBox(height: 20),
+                    _buildMenuCard(),
+                    const SizedBox(height: 30),
+                  ],
                 ),
-                Expanded(
-                  child: Container(
-                    color: const Color(0xFFF7F7F7),
-                  ),
-                ),
-              ],
-            ),
-
-            // FOREGROUND CONTENT
-            SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 40),
-
-                  // PROFILE HEADER (avatar + name)
-                  Column(
-                    children: [
-                      const CircleAvatar(
-                        radius: 48,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.person, size: 60, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        fullName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // WHITE CARD OVER BLUE BACKGROUND
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 20),
-                      child: Column(
-                        children: [
-                          if (role == "parent")
-                            _menuButton(
-                              label: "أبنائي",
-                              icon: Icons.family_restroom,
-                              onTap: null, // disabled
-                            ),
-
-                          _menuButton(
-                            label: "تعديل الملف الشخصي",
-                            icon: Icons.edit,
-                            onTap: () => Navigator.pushNamed(
-                                context, "/edit_profile"),
-                          ),
-
-                          _menuButton(
-                            label: "تغيير كلمة المرور",
-                            icon: Icons.lock,
-                            onTap: null,
-                          ),
-
-                          _menuButton(
-                            label: "الدعم الفني",
-                            icon: Icons.headset_mic_outlined,
-                            onTap: null,
-                          ),
-
-                          _menuButton(
-                            label: "الإعدادات",
-                            icon: Icons.settings,
-                            onTap: null,
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          _dangerButton(
-  label: "حذف الحساب",
-  icon: Icons.delete,
-  onTap: () => _confirmDeleteAccount(context),
-),
-
-
-                          const SizedBox(height: 10),
-
-                          _dangerButton(
-                            label: "تسجيل الخروج",
-                            icon: Icons.logout,
-                            onTap: () => _signOut(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-                ],
               ),
             ),
           ],
         ),
+        bottomNavigationBar: _buildBottomNav(),
       ),
     );
   }
 
-  Widget _menuButton({
-    required String label,
-    required IconData icon,
-    VoidCallback? onTap,
-  }) {
-    return Opacity(
-      opacity: onTap == null ? 0.5 : 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF3FF),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 26, color: kAccent),
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: kAccent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                const Icon(
-  Icons.arrow_forward_ios, // ⬅️ يصير سهم "تقدم" مناسب لـ RTL
-  size: 18,
-  color: Colors.black54,
-),
-              ],
-            ),
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      height: MediaQuery.of(context).size.height * 0.18,
+      padding: const EdgeInsets.only(top: 50, right: 20, left: 20),
+      color: kDarkBlue,
+      alignment: Alignment.topRight,
+      child: const Text(
+        "الملف الشخصي",
+        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildProfileCircle() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: const BoxDecoration(color: kAccent, shape: BoxShape.circle),
+          child: const CircleAvatar(
+            radius: 50,
+            backgroundColor: Colors.white,
+            child: Icon(Icons.person, size: 60, color: Colors.grey),
           ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          fullName,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kDarkBlue),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Column(
+          children: [
+            if (role == "parent")
+              _menuItem(label: "أبنائي", icon: Icons.family_restroom, onTap: null),
+            _menuItem(label: "تعديل الملف الشخصي", icon: Icons.edit, 
+              onTap: () => Navigator.pushNamed(context, "/edit_profile")),
+            _menuItem(label: "تغيير كلمة المرور", icon: Icons.lock, onTap: null),
+            _menuItem(label: "الدعم الفني", icon: Icons.headset_mic_outlined, onTap: null),
+            
+            const Divider(indent: 20, endIndent: 20, height: 30),
+            
+            _dangerItem(label: "حذف الحساب", icon: Icons.delete_forever, 
+              onTap: () => _confirmDeleteAccount(context)),
+            _dangerItem(label: "تسجيل الخروج", icon: Icons.logout, 
+              onTap: () => _signOut(context)),
+          ],
         ),
       ),
     );
   }
 
-  Widget _dangerButton({
-    required String label,
-    required IconData icon,
-    VoidCallback? onTap,
-  }) {
-    return Opacity(
-      opacity: onTap == null ? 0.6 : 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.red.shade200,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-  mainAxisAlignment: MainAxisAlignment.center,
-  children: [
-    Text(
-      label,
-      style: const TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    const SizedBox(width: 10),
+  Widget _menuItem({required String label, required IconData icon, VoidCallback? onTap}) {
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(icon, color: kAccent),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: kDarkBlue)),
+      trailing: const Icon(Icons.chevron_right, size: 20),
+      enabled: onTap != null,
+    );
+  }
 
-    // 🔥 الآيقونة على اليسار دائماً
-    Icon(
-      icon,
-      size: 22,
-      textDirection: TextDirection.ltr,
-    ),
-  ],
-),
-          ),
-        ),
+  Widget _dangerItem({required String label, required IconData icon, required VoidCallback onTap}) {
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(icon, color: Colors.red.shade400),
+      title: Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade400)),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: kLightGrey,
+        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
+      ),
+      child: BottomNavigationBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        showSelectedLabels: false,
+        showUnselectedLabels: false,
+        selectedItemColor: kDarkBlue,
+        unselectedItemColor: Colors.grey.shade400,
+        currentIndex: 1, // Profile is active
+        onTap: (index) {
+          if (index == 0) {
+            // Navigate based on Role
+            if (role == "admin") {
+              Navigator.pushReplacementNamed(context, '/AdminHome');
+            } else if (role == "parent") {
+              Navigator.pushReplacementNamed(context, '/ParentHome');
+            } else if (role == "driver") {
+              Navigator.pushReplacementNamed(context, '/DriverHome');
+            }
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'Profile'),
+        ],
       ),
     );
   }
