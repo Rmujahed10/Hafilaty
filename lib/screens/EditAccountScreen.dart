@@ -1,17 +1,15 @@
 // ignore_for_file: file_names
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // --- IMPORT YOUR VALIDATOR LOGIC HERE ---
-// Make sure 'hafilaty' matches the name in your pubspec.yaml
 import 'package:hafilaty/utils/validators.dart';
 
 // --- Constants ---
 const Color kHeaderColor = Color(0xFF0D1B36); // Dark Blue
-const Color kAccentColor = Color(0xFF8BAA3C); // Green
+const Color kAccentColor = Color(0xFF6A994E); // Green (Updated to match AdminHome)
 const Color kFieldBgColor = Color(0xFFF9FFF4); // Light Green Background
 
 class EditAccountScreen extends StatefulWidget {
@@ -43,7 +41,8 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
   bool _isLoading = true;
   bool _isUpdating = false;
-  String? _role; // parent / driver / admin
+  String? _role; 
+  String? _phoneDocId; // To store the document ID (phone)
 
   @override
   void initState() {
@@ -95,7 +94,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     }
   }
 
-  // --- Load Data ---
+  // --- Load Data (Using Phone as Doc ID) ---
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -104,9 +103,17 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         return;
       }
 
+      // Extract phone from email (05xxxx@hafilatyapp.com)
+      _phoneDocId = user.email?.split('@')[0];
+
+      if (_phoneDocId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
       final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(_phoneDocId)
           .get();
 
       if (!doc.exists) {
@@ -142,15 +149,14 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     }
   }
 
-  // --- Update Data ---
+  // --- Update Data (Using Phone as Doc ID) ---
   Future<void> _updateUserData() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isUpdating = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (_phoneDocId == null) return;
 
       final Map<String, dynamic> updatedData = {
         'firstName': _firstNameController.text.trim(),
@@ -174,13 +180,12 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
       } else if (_role == 'admin') {
         updatedData.addAll({
           'school': _schoolController.text.trim(),
-          'birthDate': _birthDateController.text.trim(),
         });
       }
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(_phoneDocId)
           .update(updatedData);
 
       if (!mounted) return;
@@ -197,7 +202,6 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     setState(() => _isUpdating = false);
   }
 
-  // --- Enhanced Field Widget ---
   Widget _buildProfileField({
     required String label,
     required TextEditingController controller,
@@ -216,82 +220,51 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
             style: const TextStyle(
               color: kAccentColor,
               fontWeight: FontWeight.bold,
+              fontSize: 14,
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           textAlign: TextAlign.right,
-          
-          // --- Interaction Logic ---
           readOnly: isReadOnly,
           onTap: onTap,
           autovalidateMode: AutovalidateMode.onUserInteraction,
-          
-          // --- Keyboard Logic ---
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-          maxLength: isNumber ? 10 : null, // Limit input length
-          inputFormatters: isNumber
-              ? [FilteringTextInputFormatter.digitsOnly] 
-              : [],
-
-          // --- MODIFIED VALIDATION LOGIC ---
+          inputFormatters: isNumber ? [FilteringTextInputFormatter.digitsOnly] : [],
           validator: (v) {
-            // 1. Use the tested logic for numbers (ID, Phone, License)
-            if (isNumber) {
-              return Validators.validateTenDigitNumber(v, label);
-            }
-            
-            // 2. Use the tested logic for email
-            if (label.contains("البريد")) {
-              return Validators.validateEmail(v);
-            }
-            
-            // 3. Fallback for generic text fields
+            if (isNumber) return Validators.validateTenDigitNumber(v, label);
+            if (label.contains("البريد")) return Validators.validateEmail(v);
             if (v == null || v.isEmpty) return '$label مطلوب';
-            
             return null;
           },
-          // ---------------------------------
-
           decoration: InputDecoration(
             filled: true,
             fillColor: kFieldBgColor,
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-            
-            // Show counter for numbers only
-            counterText: isNumber ? null : "",
-
+            counterText: "",
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(
-                color: kAccentColor,
-                width: 1.0,
-              ),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade200),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(
-                color: kAccentColor,
-                width: 2.0,
-              ),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: kAccentColor, width: 1.5),
             ),
-            // Show error border in red if invalid
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red, width: 1.0),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: Colors.red, width: 2.0),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -314,11 +287,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                     const Spacer(),
                     const Text(
                       'تعديل معلومات الحساب',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
                     IconButton(
@@ -329,7 +298,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                 ),
               ),
 
-              // --- White Body ---
+              // --- Body ---
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -341,115 +310,57 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                     ),
                   ),
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const Center(child: CircularProgressIndicator(color: kHeaderColor))
                       : Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(24),
                           child: Form(
                             key: _formKey,
                             child: SingleChildScrollView(
                               child: Column(
                                 children: [
-                                  // Names
-                                  _buildProfileField(
-                                    label: 'الاسم الأول',
-                                    controller: _firstNameController,
+                                  Row(
+                                    children: [
+                                      Expanded(child: _buildProfileField(label: 'الاسم الأول', controller: _firstNameController)),
+                                      const SizedBox(width: 15),
+                                      Expanded(child: _buildProfileField(label: 'الاسم الأخير', controller: _lastNameController)),
+                                    ],
                                   ),
-                                  _buildProfileField(
-                                    label: 'الاسم الأخير',
-                                    controller: _lastNameController,
-                                  ),
+                                  _buildProfileField(label: 'الهوية', controller: _idController, isNumber: true, hint: "1xxxxxxxxx"),
 
-                                  // ID - Validation Applied
-                                  _buildProfileField(
-                                    label: 'الهوية',
-                                    controller: _idController,
-                                    isNumber: true,
-                                    hint: "1xxxxxxxxx",
-                                  ),
-
-                                  // Parent Fields
                                   if (_role == 'parent') ...[
-                                    _buildProfileField(
-                                      label: 'المدينة',
-                                      controller: _cityController,
-                                    ),
-                                    _buildProfileField(
-                                      label: 'الحي',
-                                      controller: _districtController,
-                                    ),
-                                    _buildProfileField(
-                                      label: 'الشارع',
-                                      controller: _streetController,
-                                    ),
+                                    _buildProfileField(label: 'المدينة', controller: _cityController),
+                                    _buildProfileField(label: 'الحي', controller: _districtController),
+                                    _buildProfileField(label: 'الشارع', controller: _streetController),
                                   ],
 
-                                  // Driver Fields
                                   if (_role == 'driver') ...[
-                                    _buildProfileField(
-                                      label: 'رقم الرخصة',
-                                      controller: _licenseController,
-                                      isNumber: true,
-                                      hint: "1xxxxxxxxx",
-                                    ),
-                                    _buildProfileField(
-                                      label: 'تاريخ الميلاد',
-                                      controller: _birthDateController,
-                                      isReadOnly: true,
-                                      onTap: _pickDate,
-                                      hint: "اضغط للتعديل",
-                                    ),
+                                    _buildProfileField(label: 'رقم الرخصة', controller: _licenseController, isNumber: true, hint: "1xxxxxxxxx"),
+                                    _buildProfileField(label: 'تاريخ الميلاد', controller: _birthDateController, isReadOnly: true, onTap: _pickDate, hint: "اضغط للتعديل"),
                                   ],
 
-                                  // Admin Fields
                                   if (_role == 'admin') ...[
-                                    _buildProfileField(
-                                      label: 'المدرسة',
-                                      controller: _schoolController,
-                                    ),
-                                    _buildProfileField(
-                                      label: 'تاريخ الميلاد',
-                                      controller: _birthDateController,
-                                      isReadOnly: true,
-                                      onTap: _pickDate,
-                                      hint: "اضغط للتعديل",
-                                    ),
+                                    _buildProfileField(label: 'المدرسة', controller: _schoolController),
                                   ],
 
-                                  // Phone - Validation Applied
-                                  _buildProfileField(
-                                    label: 'رقم الجوال',
-                                    controller: _phoneController,
-                                    isNumber: true,
-                                    hint: "05xxxxxxxx",
-                                  ),
+                                  _buildProfileField(label: 'رقم الجوال', controller: _phoneController, isNumber: true, hint: "05xxxxxxxx"),
+                                  _buildProfileField(label: 'البريد الإلكتروني', controller: _emailController, hint: "example@mail.com"),
 
-                                  // Email
-                                  _buildProfileField(
-                                    label: 'البريد الإلكتروني',
-                                    controller: _emailController,
-                                    hint: "example@mail.com",
-                                  ),
+                                  const SizedBox(height: 20),
 
-                                  const SizedBox(height: 16),
-
-                                  // Save Button
                                   SizedBox(
                                     width: double.infinity,
-                                    child: ElevatedButton.icon(
+                                    child: ElevatedButton(
                                       onPressed: _isUpdating ? null : _updateUserData,
-                                      icon: const Icon(Icons.edit_outlined),
-                                      label: _isUpdating
-                                          ? const Text('جاري التحديث...')
-                                          : const Text('تعديل'),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFFFCD4D8),
                                         foregroundColor: Colors.black87,
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 12),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                        elevation: 0,
                                       ),
+                                      child: _isUpdating
+                                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87))
+                                          : const Text('تعديل البيانات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                     ),
                                   ),
                                   const SizedBox(height: 20),
