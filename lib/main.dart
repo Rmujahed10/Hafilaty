@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart'; // استيراد المكتبة
 import 'firebase_options.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 // --- استيراد الشاشات ---
 import 'screens/LoginScreen.dart';
@@ -14,6 +15,7 @@ import 'screens/StudentsManagementScreen.dart';
 import 'screens/BusManagementScreen.dart';
 import 'screens/ParentHomeScreen.dart';
 import 'screens/RegistrationRequests.dart';
+import 'screens/ManageChildScreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +25,7 @@ void main() async {
 
   // تهيئة مكتبة الترجمة
   await EasyLocalization.ensureInitialized();
+  await initializeDateFormatting('ar', null);
 
   runApp(
     EasyLocalization(
@@ -127,6 +130,8 @@ class HafilatyApp extends StatelessWidget {
         '/bus_management': (context) => const BusManagementScreen(),
         '/parent_home': (context) => const ParentHomeScreen(),
         '/registration_requests': (context) => const RegistrationRequests(),
+        '/manage_child': (_) => const ManageChildScreen(),
+        
       },
     );
   }

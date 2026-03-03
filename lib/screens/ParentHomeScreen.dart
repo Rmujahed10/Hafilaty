@@ -1,5 +1,3 @@
-// ignore_for_file: file_names
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -136,17 +134,18 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                             );
                           }
                           return Column(
-                            children: students.map((doc) {
-                              var data = doc.data() as Map<String, dynamic>;
-                              return _buildInteractiveStudentCard(
-                                context,
-                                data['name_ar'] ?? '',
-                                data['Grade'] ?? '',
-                                data['SchoolName'] ?? '',
-                                data['status'] ?? 'pending',
-                              );
-                            }).toList(),
-                          );
+  children: students.map((doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    return _buildInteractiveStudentCard(
+      context,
+      doc.id, // ✅ هذا أهم شيء
+      data['name_ar'] ?? '',
+      data['Grade'] ?? '',
+      data['SchoolName'] ?? '',
+      data['status'] ?? 'pending',
+    );
+  }).toList(),
+);;
                         },
                       ),
 
@@ -174,8 +173,40 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                       ),
 
                       // هنا يمكنك مستقبلاً فلترة الطلاب المقبولين فقط لعرض تأكيد حضورهم
-                      _buildAttendanceCard("علي غازي القحطاني"),
-                    ],
+                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+  stream: FirebaseFirestore.instance
+      .collection('Students')
+      .where('parentPhone', isEqualTo: phoneDocId)
+      .snapshots(),
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (snapshot.hasError) {
+      return Center(child: Text("خطأ: ${snapshot.error}"));
+    }
+
+    final docs = snapshot.data?.docs ?? [];
+
+    if (docs.isEmpty) {
+      return const Text(
+        "لا يوجد أبناء لعرض الحضور",
+        style: TextStyle(color: Colors.grey, fontSize: 13),
+      );
+    }
+
+    return Column(
+      children: docs.map((doc) {
+        final data = doc.data();
+
+        final name = (data['StudentName_ar'] ?? data['StudentName'] ?? '').toString();
+
+        return _buildAttendanceCard(name);
+      }).toList(),
+    );
+  },
+),]
                   ),
                 ),
               ),
@@ -190,6 +221,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   // ويدجت البطاقة التفاعلية التي طلبتها
   Widget _buildInteractiveStudentCard(
     BuildContext context,
+    String requestId,
     String name,
     String grade,
     String school,
@@ -239,19 +271,21 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
               const Icon(Icons.chevron_left, color: Colors.grey, size: 20),
           ],
         ),
-        onTap: isApproved
-            ? () {
-                // هنا تنقل الوالد للصفحة التالية عند الموافقة
-                print("تم الانتقال لصفحة الطالب $name");
-              }
-            : () {
-                // رسالة في حال لم يتم الموافقة بعد
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("الطلب لا يزال قيد المعالجة، يرجى الانتظار."),
-                  ),
-                );
-              },
+      onTap: isApproved
+    ? () {
+        Navigator.pushNamed(
+          context,
+          '/manage_child',
+          arguments: {'requestId': requestId},
+        );
+      }
+    : () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("الطلب لا يزال قيد المعالجة، يرجى الانتظار."),
+          ),
+        );
+      },
       ),
     );
   }
