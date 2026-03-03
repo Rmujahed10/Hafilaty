@@ -355,7 +355,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
               "parentPhone": _parentPhone.text,
               "secondPhone": _secondPhone.text,
               "SchoolName": selectedSchoolName, // حفظ الاسم
-              "schoolId": selectedSchoolId, // حفظ الـ ID (الطلب الجديد)
+              "SchoolId": int.parse(selectedSchoolId!), 
               "Grade": selectedGrade,
               "status": "pending",
               "createdAt": Timestamp.now(),

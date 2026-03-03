@@ -264,7 +264,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     switch (status) {
       case 'approved':
         color = Colors.green;
-        text = "تمت الموافقة";
+        text = "مسجل";
         break;
       case 'rejected':
         color = Colors.red;

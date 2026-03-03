@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+// IMPORTANT: Ensure this path matches your actual file structure
+import 'RegistrationRequests.dart'; 
+
 // --- Constants ---
 const Color kDarkBlue = Color(0xFF0D1B36);
 const Color kAccent = Color(0xFF6A994E);
-const Color kLightGrey = Color(0xFFF5F5F5); // Slightly darker than pure white for the toolbar
+const Color kLightGrey = Color(0xFFF5F5F5); 
 
 class AdminHome extends StatefulWidget {
   final Map<String, dynamic>? schoolData;
@@ -52,7 +55,7 @@ class _AdminHomeState extends State<AdminHome> {
             .collection('Schools')
             .doc(currentSchoolId)
             .get();
-        
+
         final studentsQuery = await FirebaseFirestore.instance
             .collection('Students')
             .where('SchoolID', isEqualTo: schoolIdInt)
@@ -67,7 +70,9 @@ class _AdminHomeState extends State<AdminHome> {
 
         if (mounted) {
           setState(() {
-            schoolName = schoolDoc.exists ? schoolDoc.get('School Name') : "مدرسة غير معروفة";
+            schoolName = schoolDoc.exists
+                ? schoolDoc.get('School Name')
+                : "مدرسة غير معروفة";
             studentCount = studentsQuery.count ?? 0;
             busCount = busesQuery.count ?? 0;
             isLoading = false;
@@ -85,15 +90,13 @@ class _AdminHomeState extends State<AdminHome> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white, // Entire page background white
-        body: isLoading 
+        backgroundColor: Colors.white, 
+        body: isLoading
             ? const Center(child: CircularProgressIndicator(color: kDarkBlue))
-            : Column( // Using Column instead of Stack to avoid the bottom blue overflow
+            : Column(
                 children: [
                   _buildHeader(),
-                  Expanded(
-                    child: _buildMainContent(),
-                  ),
+                  Expanded(child: _buildMainContent()),
                 ],
               ),
         bottomNavigationBar: _buildBottomNav(context),
@@ -106,14 +109,14 @@ class _AdminHomeState extends State<AdminHome> {
       width: double.infinity,
       height: MediaQuery.of(context).size.height * 0.18,
       padding: const EdgeInsets.only(top: 50, right: 20, left: 20),
-      color: kDarkBlue, // Only top part is blue
+      color: kDarkBlue, 
       alignment: Alignment.topRight,
       child: const Text(
         "لوحة التحكم",
         style: TextStyle(
-          color: Colors.white, 
-          fontSize: 22, 
-          fontWeight: FontWeight.bold
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -131,21 +134,19 @@ class _AdminHomeState extends State<AdminHome> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // School Name Aligned Right and Smaller
             Align(
               alignment: Alignment.centerRight,
               child: Text(
                 schoolName,
                 style: const TextStyle(
-                  fontSize: 18, // Smaller font
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: kDarkBlue,
                 ),
               ),
             ),
             const SizedBox(height: 25),
-            
-            // Statistics Section
+
             Row(
               children: [
                 Expanded(child: _buildStatCard("عدد الحافلات", "$busCount")),
@@ -153,11 +154,9 @@ class _AdminHomeState extends State<AdminHome> {
                 Expanded(child: _buildStatCard("عدد الطلاب", "$studentCount")),
               ],
             ),
-            
+
             const SizedBox(height: 30),
             _buildSectionTitle("حالة الحافلات"),
-            
-            // Centered Status Section
             _buildBusStatusRow(),
 
             const SizedBox(height: 30),
@@ -166,28 +165,98 @@ class _AdminHomeState extends State<AdminHome> {
               children: [
                 Expanded(
                   child: _buildActionCard(
-                    "إدارة الحافلات", 
-                    Icons.directions_bus, 
-                    () => Navigator.pushNamed(context, '/bus_management')
-                  )
+                    "إدارة الحافلات",
+                    Icons.directions_bus,
+                    () => Navigator.pushNamed(context, '/bus_management'),
+                  ),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
                   child: _buildActionCard(
-                    "إدارة الطلاب والطالبات", 
-                    Icons.people, 
-                    () => Navigator.pushNamed(context, '/students_management')
-                  )
+                    "إدارة الطلاب والطالبات",
+                    Icons.people,
+                    () => Navigator.pushNamed(context, '/students_management'),
+                  ),
                 ),
               ],
             ),
 
             const SizedBox(height: 30),
             _buildSectionTitle("طلبات التسجيل"),
-            _buildRegistrationRequests(),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RegistrationRequests()),
+              ),
+              child: _buildRegistrationRequests(), 
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRegistrationRequests() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('StudentRequests') 
+          .where('schoolId', isEqualTo: int.parse(currentSchoolId ?? "0"))
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                "لا توجد طلبات حالية",
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.grey.shade100),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['name_ar'] ?? "اسم الطالب", 
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const Text(
+                        "قيد الانتظار",
+                        style: TextStyle(color: Colors.red, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -197,9 +266,9 @@ class _AdminHomeState extends State<AdminHome> {
       child: Text(
         title,
         style: const TextStyle(
-          fontSize: 16, 
-          color: Color(0xFF98AF8D), 
-          fontWeight: FontWeight.bold
+          fontSize: 16,
+          color: Color(0xFF98AF8D),
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -214,10 +283,10 @@ class _AdminHomeState extends State<AdminHome> {
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04), 
-            blurRadius: 12, 
-            offset: const Offset(0, 4)
-          )
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -225,12 +294,12 @@ class _AdminHomeState extends State<AdminHome> {
           Text(title, style: const TextStyle(color: kDarkBlue, fontSize: 13)),
           const SizedBox(height: 8),
           Text(
-            value, 
+            value,
             style: const TextStyle(
-              color: kDarkBlue, 
-              fontSize: 22, 
-              fontWeight: FontWeight.bold
-            )
+              color: kDarkBlue,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -254,8 +323,8 @@ class _AdminHomeState extends State<AdminHome> {
           return const Center(child: Text("لا توجد حافلات مسجلة حالياً"));
         }
 
-        return Center( // Center the status items
-          child: Wrap( // Wrap makes it handle multiple items symmetrically
+        return Center(
+          child: Wrap(
             alignment: WrapAlignment.center,
             spacing: 15,
             runSpacing: 15,
@@ -263,10 +332,10 @@ class _AdminHomeState extends State<AdminHome> {
               final data = doc.data() as Map<String, dynamic>;
               List<String> statuses = ["متأخر", "في الطريق", "مشكلة"];
               String status = statuses[busDocs.indexOf(doc) % 3];
-              
+
               return _buildBusStatusItem(
-                "حافلة ${data['BusNumber'] ?? '?'}\n$status", 
-                const Color(0xFFD4E09B)
+                "حافلة ${data['BusNumber'] ?? '?'}\n$status",
+                const Color(0xFFD4E09B),
               );
             }).toList(),
           ),
@@ -276,30 +345,26 @@ class _AdminHomeState extends State<AdminHome> {
   }
 
   Widget _buildBusStatusItem(String text, Color color) {
-    // Increased size to match action cards weight
     return Container(
-      width: MediaQuery.of(context).size.width * 0.42, 
+      width: MediaQuery.of(context).size.width * 0.42,
       height: 100,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.8), 
+        color: color.withOpacity(0.8),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03), 
-            blurRadius: 5
-          )
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5),
         ],
       ),
       child: Center(
         child: Text(
-          text, 
-          textAlign: TextAlign.center, 
+          text,
+          textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 14, 
-            fontWeight: FontWeight.bold, 
-            color: kDarkBlue
-          )
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: kDarkBlue,
+          ),
         ),
       ),
     );
@@ -315,10 +380,7 @@ class _AdminHomeState extends State<AdminHome> {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.grey.shade100),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04), 
-              blurRadius: 10
-            )
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10),
           ],
         ),
         child: Column(
@@ -327,13 +389,13 @@ class _AdminHomeState extends State<AdminHome> {
             Icon(icon, color: kDarkBlue, size: 28),
             const SizedBox(height: 8),
             Text(
-              title, 
-              textAlign: TextAlign.center, 
+              title,
+              textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 12, 
-                color: kDarkBlue, 
-                fontWeight: FontWeight.bold
-              )
+                fontSize: 12,
+                color: kDarkBlue,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -341,63 +403,17 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
-  Widget _buildRegistrationRequests() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('StudentsRequests')
-          .where('schoolId', isEqualTo: currentSchoolId)
-          .where('status', isEqualTo: 'pending')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.only(top: 10),
-              child: Text("لا توجد طلبات حالية", style: TextStyle(color: Colors.grey, fontSize: 13)),
-            )
-          );
-        }
-
-        return Column(
-          children: snapshot.data!.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.grey.shade100),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(data['studentName'] ?? "اسم الطالب", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const Text("قيد الانتظار", style: TextStyle(color: Colors.red, fontSize: 11)),
-                    ],
-                  ),
-                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                ],
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: kLightGrey, // Slightly darker white
-        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
+        color: kLightGrey,
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade200, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
-        elevation: 0, // Elevation handled by container border
-        backgroundColor: Colors.transparent, 
+        elevation: 0, 
+        backgroundColor: Colors.transparent,
         type: BottomNavigationBarType.fixed,
         showSelectedLabels: false,
         showUnselectedLabels: false,

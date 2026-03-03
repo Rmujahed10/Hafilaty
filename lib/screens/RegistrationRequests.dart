@@ -78,8 +78,8 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('StudentsRequest')
-          .where('SchoolId', isEqualTo: schoolIdInt)
+          .collection('StudentRequests')
+          .where('schoolId', isEqualTo: schoolIdInt)
           .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (context, snapshot) {
@@ -189,17 +189,17 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
         'BusID': "101", // Default/Fake as requested for now
         'Latitude': 21.664476, // Default/Fake until Geocoding integrated
         'Longitude': 39.128645, 
-        'SchoolID': data['SchoolId'], 
+        'SchoolID': data['schoolId'], 
         'StudentID': newStudentId,
         'StudentName': data['name_en'],
         'StudentName_ar': data['name_ar'],
         'parentPhone': data['parentPhone'],
         'Grade': data['Grade'],
       });
-
-      // 3. Delete from Requests
-      await FirebaseFirestore.instance.collection('StudentsRequest').doc(requestId).delete();
-
+      // 3. Update Request Status
+      await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
+        'status': 'approved',
+      }); 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم قبول الطالب وإضافته للنظام")));
     } catch (e) {
       debugPrint("Accept Error: $e");
@@ -208,7 +208,7 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
 
   Future<void> _handleRefuse(String requestId) async {
     // Simply update status so parent can see it was refused
-    await FirebaseFirestore.instance.collection('StudentsRequest').doc(requestId).update({
+    await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
       'status': 'refused',
     });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم رفض الطلب")));

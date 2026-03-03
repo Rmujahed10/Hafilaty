@@ -13,6 +13,7 @@ import 'screens/AdminHome.dart';
 import 'screens/StudentsManagementScreen.dart';
 import 'screens/BusManagementScreen.dart';
 import 'screens/ParentHomeScreen.dart';
+import 'screens/RegistrationRequests.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -125,6 +126,7 @@ class HafilatyApp extends StatelessWidget {
         '/AdminHome': (context) => const AdminHome(),
         '/bus_management': (context) => const BusManagementScreen(),
         '/parent_home': (context) => const ParentHomeScreen(),
+        '/registration_requests': (context) => const RegistrationRequests(),
       },
     );
   }
