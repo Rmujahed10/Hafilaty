@@ -1,5 +1,6 @@
+// ignore_for_file: unused_element, file_names
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart'; // 1. استيراد المكتبة
@@ -81,8 +82,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (credential.user != null) {
         await _checkRoleAndNavigate(cleanedPhone);
       }
-    } on FirebaseAuthException catch (e) {
-      String message = 'error_wrong_credentials'.tr();
+    } on FirebaseAuthException {
+      String message = 'error_wntials'.tr();
       _showError(message);
     } finally {
       setState(() => _isLoading = false);
