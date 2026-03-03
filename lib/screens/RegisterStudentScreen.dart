@@ -11,7 +11,7 @@ class RegisterStudentScreen extends StatefulWidget {
 class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // وحدات التحكم (Controllers) من كودك الأصلي
+  // وحدات التحكم (Controllers)
   final TextEditingController _nameAr = TextEditingController();
   final TextEditingController _nameEn = TextEditingController();
   final TextEditingController _idNumber = TextEditingController();
@@ -19,7 +19,8 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   final TextEditingController _parentPhone = TextEditingController();
   final TextEditingController _secondPhone = TextEditingController();
 
-  String? selectedSchool;
+  String? selectedSchoolName;
+  String? selectedSchoolId; // متغير لحفظ الـ ID الخاص بالمدرسة
   String? selectedGrade;
   bool _isLoading = false;
 
@@ -38,7 +39,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     "الثالث ثانوي",
   ];
 
-  // ألوان التصميم المطلوبة
+  // ألوان التصميم المطلوبة من كودك
   final Color _kDarkBlue = const Color(0xFF0D1B36);
   final Color _kInputFill = const Color(0xFFF0F0F0);
 
@@ -51,7 +52,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          automaticallyImplyLeading: false, // تحكم يدوي في العناصر
+          automaticallyImplyLeading: false,
           title: Padding(
             padding: const EdgeInsets.only(top: 15),
             child: Row(
@@ -92,13 +93,8 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
         body: Column(
           children: [
             const SizedBox(height: 20),
-
-            // ويدجت صورة الطالب (Avatar)
             _buildStudentAvatar(),
-
             const SizedBox(height: 25),
-
-            // الحاوية البيضاء المنحنية
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -115,7 +111,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        // الاسم العربي ثلاثي
                         _buildTextField(
                           _nameAr,
                           "اسم الطالب ثلاثي (بالعربي) :",
@@ -126,8 +121,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             return null;
                           },
                         ),
-
-                        // الاسم الإنجليزي ثلاثي
                         _buildTextField(
                           _nameEn,
                           "Student Triple Name (English) :",
@@ -139,8 +132,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             return null;
                           },
                         ),
-
-                        // رقم الهوية
                         _buildTextField(
                           _idNumber,
                           "رقم الهوية :",
@@ -151,8 +142,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             return null;
                           },
                         ),
-
-                        // العنوان الوطني
                         _buildTextField(
                           _nationalAddress,
                           "العنوان الوطني (مثال: ABCD1234) :",
@@ -165,8 +154,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             return null;
                           },
                         ),
-
-                        // رقم الجوال الأساسي
                         _buildTextField(
                           _parentPhone,
                           "رقم الجوال الأساسي :",
@@ -178,8 +165,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             return null;
                           },
                         ),
-
-                        // رقم الجوال الثاني
                         _buildTextField(
                           _secondPhone,
                           "رقم الجوال الثاني (اختياري) :",
@@ -192,14 +177,9 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             return null;
                           },
                         ),
-
-                        // القوائم المنسدلة (Dropdowns)
                         _buildSchoolDropdown(),
                         _buildGradeDropdown(),
-
                         const SizedBox(height: 35),
-
-                        // زر إرسال الطلب
                         _buildSubmitButton(),
                       ],
                     ),
@@ -213,7 +193,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // تصميم أيقونة الطالب بالصورة
   Widget _buildStudentAvatar() {
     return Stack(
       alignment: Alignment.bottomRight,
@@ -244,7 +223,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // ويجت بناء حقول النص
   Widget _buildTextField(
     TextEditingController controller,
     String label, {
@@ -275,7 +253,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // منسدلة المدرسة
   Widget _buildSchoolDropdown() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -292,16 +269,21 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                 borderRadius: BorderRadius.circular(15),
               ),
             ),
-            value: selectedSchool,
-            items: snapshot.data!.docs
-                .map(
-                  (doc) => DropdownMenuItem(
-                    value: doc['School Name_ar'].toString(),
-                    child: Text(doc['School Name_ar'].toString()),
-                  ),
-                )
-                .toList(),
-            onChanged: (val) => setState(() => selectedSchool = val),
+            value: selectedSchoolId, // نستخدم الـ ID كقيمة
+            items: snapshot.data!.docs.map((doc) {
+              return DropdownMenuItem<String>(
+                value: doc.id, // حفظ الـ ID (مثل 32438)
+                child: Text(doc['School Name_ar'].toString()),
+              );
+            }).toList(),
+            onChanged: (val) {
+              setState(() {
+                selectedSchoolId = val;
+                // الحصول على الاسم للعرض فقط
+                var doc = snapshot.data!.docs.firstWhere((d) => d.id == val);
+                selectedSchoolName = doc['School Name_ar'];
+              });
+            },
             validator: (val) => val == null ? "مطلوب" : null,
           );
         },
@@ -309,7 +291,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // منسدلة الصف
   Widget _buildGradeDropdown() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -330,7 +311,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // زر الإرسال
   Widget _buildSubmitButton() {
     return SizedBox(
       width: 180,
@@ -346,7 +326,11 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
         ),
         onPressed: _isLoading ? null : _submitData,
         child: _isLoading
-            ? const CircularProgressIndicator()
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
             : const Text(
                 "إرسال الطلب",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -355,11 +339,11 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // منطق حفظ البيانات
   void _submitData() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
+        // تم استخدام .doc(_idNumber.text) لحفظ السجل برقم الهوية
         await FirebaseFirestore.instance
             .collection("StudentRequests")
             .doc(_idNumber.text)
@@ -370,11 +354,13 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
               "NationalAddress": _nationalAddress.text,
               "parentPhone": _parentPhone.text,
               "secondPhone": _secondPhone.text,
-              "SchoolName": selectedSchool,
+              "SchoolName": selectedSchoolName, // حفظ الاسم
+              "schoolId": selectedSchoolId, // حفظ الـ ID (الطلب الجديد)
               "Grade": selectedGrade,
               "status": "pending",
               "createdAt": Timestamp.now(),
             });
+
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("تم إرسال الطلب بنجاح")));
