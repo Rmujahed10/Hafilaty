@@ -344,7 +344,7 @@ class _AdminHomeState extends State<AdminHome> {
   Widget _buildRegistrationRequests() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('registration_requests')
+          .collection('StudentsRequests')
           .where('schoolId', isEqualTo: currentSchoolId)
           .where('status', isEqualTo: 'pending')
           .snapshots(),
