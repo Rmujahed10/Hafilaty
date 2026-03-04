@@ -1,9 +1,7 @@
 // ignore_for_file: file_names
-
-// ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart' hide TextDirection; // تم إضافة hide لمنع التعارض
+import 'package:intl/intl.dart' hide TextDirection; 
 import 'package:hijri/hijri_calendar.dart';
 
 class ManageChildScreen extends StatefulWidget {
@@ -22,7 +20,6 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // التأكد من استقبال البيانات بشكل صحيح
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args == null) return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
     
@@ -44,14 +41,9 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
               }
 
               final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-
               final nameAr = (data['name_ar'] ?? '').toString();
               final nameEn = (data['name_en'] ?? '').toString();
-              final grade = (data['Grade'] ?? '').toString();
-              final school = (data['SchoolName'] ?? '').toString();
-              final status = (data['status'] ?? 'pending').toString();
               final parentPhone = (data['parentPhone'] ?? '').toString();
-
               final childName = nameAr.isNotEmpty ? nameAr : nameEn;
 
               const noteText =
@@ -119,16 +111,12 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                
-                                // ✅ هنا قمت بإضافة البار الذي كان مفقوداً في الكود الخاص بك
                                 FigmaAttendanceBar(
                                   attendance: attendance,
                                   onChanged: (val) {
                                     setState(() => attendance = val);
-                                    // هنا يمكنك إضافة تحديث Firestore لـ requestId
                                   },
                                 ),
-
                                 const SizedBox(height: 20),
                                 const Align(
                                   alignment: Alignment.centerRight,
@@ -173,39 +161,57 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                       ),
                     ),
                   ),
-                  const _BottomBar(),
                 ],
               );
             },
           ),
         ),
+        // ✅ Added the Standardized Bottom Bar here
+        bottomNavigationBar: _buildBottomNav(context),
+      ),
+    );
+  }
+
+  // ✅ New Standardized Bottom Navigation with Titles
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      height: 85,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6E6E6),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+      ),
+      child: BottomNavigationBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        currentIndex: 0, 
+        onTap: (index) {
+          if (index == 0) Navigator.pushReplacementNamed(context, '/parent_home');
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+        ],
       ),
     );
   }
 }
 
+/* -------------------- Sub-Widgets remain as they were -------------------- */
 
-/* -------------------- Status Bar (Figma-like) -------------------- */
 class FigmaAttendanceBar extends StatelessWidget {
   final String attendance;
   final ValueChanged<String> onChanged;
-
-  const FigmaAttendanceBar({
-    super.key,
-    required this.attendance,
-    required this.onChanged,
-  });
+  const FigmaAttendanceBar({super.key, required this.attendance, required this.onChanged});
 
   Map<String, String> get _getHijriDetails {
-    // تحديث التاريخ الهجري بناءً على الوقت الحالي
     var today = HijriCalendar.now();
-    
-    // قائمة الشهور العربية لضمان عدم ظهور null
-    List<String> monthsAr = [
-      "محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة",
-      "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"
-    ];
-
+    List<String> monthsAr = ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"];
     return {
       'dayNumber': today.hDay.toString(),
       'monthName': monthsAr[today.hMonth - 1],
@@ -216,69 +222,40 @@ class FigmaAttendanceBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateInfo = _getHijriDetails;
-
     return Container(
       height: 85,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF8A95A5),
-        borderRadius: BorderRadius.circular(15),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFF8A95A5), borderRadius: BorderRadius.circular(15)),
       child: Row(
-        // إصلاح خطأ TextDirection باستخدام الأحرف الصغيرة .rtl
         textDirection: TextDirection.rtl, 
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // اليمين: التاريخ (الرقم فوق والكلمات تحت)
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                dateInfo['dayNumber']!,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0B1220),
-                  height: 1.0,
-                ),
-              ),
+              Text(dateInfo['dayNumber']!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0B1220), height: 1.0)),
               const SizedBox(height: 4),
-              Text(
-                "${dateInfo['monthName']} ${dateInfo['dayName']}",
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0B1220),
-                ),
-              ),
+              Text("${dateInfo['monthName']} ${dateInfo['dayName']}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0B1220))),
             ],
           ),
-          
-          // اليسار: زر "غائب/حاضر"
-          _RightPillDropdown(
-            value: attendance,
-            onChanged: onChanged,
-          ),
+          _RightPillDropdown(value: attendance, onChanged: onChanged),
         ],
       ),
     );
   }
 }
+
 class _RightPillDropdown extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
   const _RightPillDropdown({required this.value, required this.onChanged});
-
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFC78484),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFC78484), borderRadius: BorderRadius.circular(10)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
@@ -295,185 +272,72 @@ class _RightPillDropdown extends StatelessWidget {
   }
 }
 
-// (أكمل بقية الكود الخاص بـ _TopHeader, _UserAvatarFromFirestore, _MapPreview, _TimelineCard كما هي في ملفك)
-
-/* -------------------- Top Header (Updated Order) -------------------- */
-
 class _TopHeader extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
   final VoidCallback onLang;
-
-  const _TopHeader({
-    required this.title,
-    required this.onBack,
-    required this.onLang,
-  });
-
+  const _TopHeader({required this.title, required this.onBack, required this.onLang});
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 92,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(color: Color(0xFF0D1B36)), // _kHeaderBlue
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
-          // الآن: أيقونة اللغة في أقصى اليمين
-          IconButton(
-            onPressed: onLang,
-            icon: const Icon(Icons.language, color: Colors.white),
-          ),
-          
+          IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white)),
           const Spacer(),
-          
-          // العنوان يبقى في المنتصف
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18.5, fontWeight: FontWeight.w900)),
           const Spacer(),
-          
-          // الآن: سهم الرجوع في أقصى اليسار
-          IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white), // استخدمنا arrow_forward لأنه يشير لليسار في وضع RTL
-          ),
+          IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_forward_ios, color: Colors.white)),
         ],
       ),
     );
   }
 }
 
-/* -------------------- User Avatar (from users doc) -------------------- */
-
 class _UserAvatarFromFirestore extends StatelessWidget {
   final String parentPhone;
-
   const _UserAvatarFromFirestore({required this.parentPhone});
-
   @override
   Widget build(BuildContext context) {
-    if (parentPhone.trim().isEmpty) {
-      return _fallbackAvatar();
-    }
-
+    if (parentPhone.trim().isEmpty) return _fallbackAvatar();
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(parentPhone)
-          .snapshots(),
+      stream: FirebaseFirestore.instance.collection('users').doc(parentPhone).snapshots(),
       builder: (context, snap) {
         String photoUrl = "";
-
         if (snap.hasData && snap.data!.exists) {
           final u = snap.data!.data() as Map<String, dynamic>;
-
-          // ✅ إذا اسم الحقل عندك مختلف عدّله هنا فقط:
-          photoUrl = (u['photoUrl'] ?? '').toString(); // <-- change field if needed
+          photoUrl = (u['photoUrl'] ?? '').toString();
         }
-
-        if (photoUrl.trim().isEmpty) {
-          return _fallbackAvatar();
-        }
-
-        return Container(
-          width: 120,
-          height: 120,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE6E6E6),
-            shape: BoxShape.circle,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Image.network(
-            photoUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _fallbackAvatar(),
-          ),
-        );
+        if (photoUrl.trim().isEmpty) return _fallbackAvatar();
+        return Container(width: 120, height: 120, decoration: const BoxDecoration(color: Color(0xFFE6E6E6), shape: BoxShape.circle), clipBehavior: Clip.antiAlias, child: Image.network(photoUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => _fallbackAvatar()));
       },
     );
   }
-
-  Widget _fallbackAvatar() {
-    return Container(
-      width: 120,
-      height: 120,
-      decoration: const BoxDecoration(
-        color: Color(0xFFE6E6E6),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: const Icon(Icons.person, size: 60, color: Colors.white),
-    );
-  }
+  Widget _fallbackAvatar() => Container(width: 120, height: 120, decoration: const BoxDecoration(color: Color(0xFFE6E6E6), shape: BoxShape.circle), alignment: Alignment.center, child: const Icon(Icons.person, size: 60, color: Colors.white));
 }
-
-/* -------------------- Map Preview (with fallback) -------------------- */
 
 class _MapPreview extends StatelessWidget {
   const _MapPreview();
-
   @override
   Widget build(BuildContext context) {
-    // This URL may fail on Flutter Web due to CORS. We handle it.
     const url = "https://maps.gstatic.com/tactile/basepage/pegman_sherlock.png";
-
-    return Container(
-      height: 150,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFFEDEFF2),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Image.network(
-        url,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: const Color(0xFFEDEFF2),
-            alignment: Alignment.center,
-            child: const Text(
-              "الخريطة غير متاحة حالياً",
-              style: TextStyle(
-                color: Color(0xFF475467),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          );
-        },
-      ),
-    );
+    return Container(height: 150, width: double.infinity, decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: const Color(0xFFEDEFF2)), clipBehavior: Clip.antiAlias, child: Image.network(url, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFFEDEFF2), alignment: Alignment.center, child: const Text("الخريطة غير متاحة حالياً", style: TextStyle(color: Color(0xFF475467), fontWeight: FontWeight.w800)))));
   }
 }
 
-/* -------------------- Timeline -------------------- */
-
 class _TimelineRowData {
-  final String title;
-  final String time;
+  final String title, time;
   final Color dotColor;
   final IconData icon;
-
-  const _TimelineRowData({
-    required this.title,
-    required this.time,
-    required this.dotColor,
-    required this.icon,
-  });
+  const _TimelineRowData({required this.title, required this.time, required this.dotColor, required this.icon});
 }
 
 class _TimelineCard extends StatelessWidget {
   final List<_TimelineRowData> items;
-
   const _TimelineCard({required this.items});
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -483,100 +347,22 @@ class _TimelineCard extends StatelessWidget {
         children: List.generate(items.length, (i) {
           final item = items[i];
           final isLast = i == items.length - 1;
-
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: item.dotColor.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(item.icon, size: 14, color: item.dotColor),
-                  ),
-                  if (!isLast)
-                    Container(
-                      width: 2,
-                      height: 34,
-                      margin: const EdgeInsets.only(top: 6),
-                      color: const Color(0xFFE5E7EB),
-                    ),
-                ],
-              ),
+              Column(children: [
+                Container(width: 22, height: 22, decoration: BoxDecoration(color: item.dotColor.withOpacity(0.15), shape: BoxShape.circle), child: Icon(item.icon, size: 14, color: item.dotColor)),
+                if (!isLast) Container(width: 2, height: 34, margin: const EdgeInsets.only(top: 6), color: const Color(0xFFE5E7EB)),
+              ]),
               const SizedBox(width: 12),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF344054),
-                          fontSize: 13.5,
-                        ),
-                      ),
-                      if (item.time.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          item.time,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF98A2B3),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                    ],
-                  ),
-                ),
-              ),
+              Expanded(child: Padding(padding: const EdgeInsets.only(top: 2), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF344054), fontSize: 13.5)),
+                if (item.time.trim().isNotEmpty) ...[const SizedBox(height: 4), Text(item.time, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF98A2B3), fontSize: 12))],
+                const SizedBox(height: 12),
+              ]))),
             ],
           );
         }),
-      ),
-    );
-  }
-}
-
-
-/* -------------------- Bottom Bar -------------------- */
-
-class _BottomBar extends StatelessWidget {
-  const _BottomBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 78,
-      width: double.infinity,
-      color: const Color(0xFFE6E6E6),
-      child: Column(
-        children: [
-          const SizedBox(height: 10),
-          Container(
-            width: 120,
-            height: 5,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B1220),
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          const Spacer(),
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.black,
-            child: Icon(Icons.person, color: Colors.white, size: 20),
-          ),
-          const SizedBox(height: 10),
-        ],
       ),
     );
   }

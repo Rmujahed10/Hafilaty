@@ -1,5 +1,8 @@
+// ignore_for_file: file_names
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterStudentScreen extends StatefulWidget {
   const RegisterStudentScreen({super.key});
@@ -10,332 +13,209 @@ class RegisterStudentScreen extends StatefulWidget {
 
 class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  // وحدات التحكم (Controllers)
-  final TextEditingController _nameAr = TextEditingController();
-  final TextEditingController _nameEn = TextEditingController();
-  final TextEditingController _idNumber = TextEditingController();
-  final TextEditingController _nationalAddress = TextEditingController();
-  final TextEditingController _parentPhone = TextEditingController();
-  final TextEditingController _secondPhone = TextEditingController();
-
-  String? selectedSchoolName;
-  String? selectedSchoolId; // متغير لحفظ الـ ID الخاص بالمدرسة
-  String? selectedGrade;
   bool _isLoading = false;
 
+  // --- Controllers ---
+  final _nameAr = TextEditingController();
+  final _nameEn = TextEditingController();
+  final _idNumber = TextEditingController();
+  final _nationalAddress = TextEditingController();
+  
+  // ✅ This controller will now show the phone number immediately
+  final _parentPhone = TextEditingController(); 
+  final _secondPhone = TextEditingController();
+
+  String? selectedSchoolName;
+  String? selectedSchoolId;
+  String? selectedGrade;
+
   final List<String> grades = [
-    "الأول ابتدائي",
-    "الثاني ابتدائي",
-    "الثالث ابتدائي",
-    "الرابع ابتدائي",
-    "الخامس ابتدائي",
-    "السادس ابتدائي",
-    "الأول متوسط",
-    "الثاني متوسط",
-    "الثالث متوسط",
-    "الأول ثانوي",
-    "الثاني ثانوي",
-    "الثالث ثانوي",
+    "الأول ابتدائي", "الثاني ابتدائي", "الثالث ابتدائي",
+    "الرابع ابتدائي", "الخامس ابتدائي", "السادس ابتدائي",
+    "الأول متوسط", "الثاني متوسط", "الثالث متوسط",
+    "الأول ثانوي", "الثاني ثانوي", "الثالث ثانوي",
   ];
 
-  // ألوان التصميم المطلوبة من كودك
-  final Color _kDarkBlue = const Color(0xFF0D1B36);
-  final Color _kInputFill = const Color(0xFFF0F0F0);
+  static const Color _kDarkBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kAccent = Color(0xFF6A994E);
+
+@override
+void initState() {
+  super.initState();
+  // This must be called to fill the controller text
+  _autoPopulateParentPhone();
+}
+
+void _autoPopulateParentPhone() {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null && user.email != null) {
+    // Extracts the phone prefix from your login email
+    final realPhone = user.email!.split('@')[0];
+    setState(() {
+      _parentPhone.text = realPhone; // This puts the text into the box
+    });
+  }
+}
 
   @override
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _kDarkBlue,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          title: Padding(
-            padding: const EdgeInsets.only(top: 15),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "تسجيل ابن جديد",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.language,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      onPressed: () {},
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        body: Column(
-          children: [
-            const SizedBox(height: 20),
-            _buildStudentAvatar(),
-            const SizedBox(height: 25),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(45)),
-                ),
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopHeader(
+                title: "تسجيل ابن جديد",
+                onBack: () => Navigator.pop(context),
+              ),
+              Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 25,
-                    vertical: 35,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        _buildTextField(
-                          _nameAr,
-                          "اسم الطالب ثلاثي (بالعربي) :",
-                          validator: (value) {
-                            if (value == null || value.isEmpty) return "مطلوب";
-                            if (value.trim().split(' ').length < 3)
-                              return "يجب إدخال الاسم ثلاثي على الأقل";
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          _nameEn,
-                          "Student Triple Name (English) :",
-                          isEnglish: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) return "مطلوب";
-                            if (value.trim().split(' ').length < 3)
-                              return "Please enter triple name";
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          _idNumber,
-                          "رقم الهوية :",
-                          isNumber: true,
-                          validator: (value) {
-                            if (value == null || value.length != 10)
-                              return "رقم الهوية يجب أن يكون 10 أرقام";
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          _nationalAddress,
-                          "العنوان الوطني (مثال: ABCD1234) :",
-                          isEnglish: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty)
-                              return "العنوان الوطني مطلوب";
-                            if (!RegExp(r'^[a-zA-Z]{4}\d{4}$').hasMatch(value))
-                              return "يجب أن يتكون من 4 حروف ثم 4 أرقام";
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          _parentPhone,
-                          "رقم الجوال الأساسي :",
-                          isNumber: true,
-                          validator: (value) {
-                            if (value == null ||
-                                !RegExp(r'^(05|5)\d{8}$').hasMatch(value))
-                              return "أدخل رقم جوال صحيح";
-                            return null;
-                          },
-                        ),
-                        _buildTextField(
-                          _secondPhone,
-                          "رقم الجوال الثاني (اختياري) :",
-                          isNumber: true,
-                          validator: (value) {
-                            if (value != null && value.isNotEmpty) {
-                              if (!RegExp(r'^(05|5)\d{8}$').hasMatch(value))
-                                return "أدخل رقم جوال صحيح";
-                            }
-                            return null;
-                          },
-                        ),
-                        _buildSchoolDropdown(),
-                        _buildGradeDropdown(),
-                        const SizedBox(height: 35),
-                        _buildSubmitButton(),
-                      ],
-                    ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      _MainCardContainer(
+                        children: [
+                          _buildStudentAvatar(),
+                          const SizedBox(height: 30),
+                          Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _SectionLabel(label: "بيانات الطالب الأساسية"),
+                                _buildSmartField(
+                                  "اسم الطالب ثلاثي (بالعربي)", _nameAr, Icons.person_outline,
+                                  hint: "مثال: محمد أحمد الغامدي",
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "الاسم مطلوب";
+                                    if (v.trim().split(' ').length < 3) return "يجب إدخال الاسم ثلاثي على الأقل";
+                                    return null;
+                                  },
+                                ),
+                                _buildSmartField(
+                                  "Student Triple Name (English)", _nameEn, Icons.person_outline,
+                                  isEnglish: true,
+                                  hint: "Ex: Mohammed Ahmed Alghamdi",
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "Name is required";
+                                    if (v.trim().split(' ').length < 3) return "Please enter triple name";
+                                    return null;
+                                  },
+                                ),
+                                _buildSmartField(
+                                  "رقم الهوية", _idNumber, Icons.badge_outlined,
+                                  isNumber: true,
+                                  hint: "١xxxxxxxxx",
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "رقم الهوية مطلوب";
+                                    if (v.length != 10) return "يجب أن يتكون من ١٠ أرقام";
+                                    return null;
+                                  },
+                                ),
+                                _buildSmartField(
+                                  "العنوان الوطني", _nationalAddress, Icons.location_on_outlined,
+                                  isEnglish: true,
+                                  hint: "مثال: ABCD1234",
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "العنوان الوطني مطلوب";
+                                    if (!RegExp(r'^[a-zA-Z]{4}\d{4}$').hasMatch(v)) return "تنسيق غير صحيح (٤ حروف ثم ٤ أرقام)";
+                                    return null;
+                                  },
+                                ),
+                                
+                                const SizedBox(height: 20),
+                                _SectionLabel(label: "بيانات التواصل"),
+                                
+                                // ✅ Locked & Auto-filled real phone field (Visible to Parent)
+                                _buildSmartField(
+                                  "رقم الجوال المسجل", _parentPhone, Icons.verified_user_outlined,
+                                  isReadOnly: true,
+                                  fillColor: Colors.grey[50], // Slightly different shade to show it's locked
+                                ),
+
+                                _buildSmartField(
+                                  "رقم الجوال الإضافي (اختياري)", _secondPhone, Icons.phone_enabled_outlined,
+                                  isNumber: true,
+                                  hint: "٠٥xxxxxxxx",
+                                  validator: (v) {
+                                    if (v != null && v.isNotEmpty) {
+                                      if (!RegExp(r'^(05|5)\d{8}$').hasMatch(v)) return "رقم الجوال غير صحيح";
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                
+                                const SizedBox(height: 20),
+                                _SectionLabel(label: "المعلومات الدراسية"),
+                                _buildSchoolDropdown(),
+                                _buildGradeDropdown(),
+                                
+                                const SizedBox(height: 40),
+                                Center(child: _buildSubmitButton()),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+              _buildBottomNav(context),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStudentAvatar() {
-    return Stack(
-      alignment: Alignment.bottomRight,
-      children: [
-        Container(
-          width: 130,
-          height: 130,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 4),
-            image: const DecorationImage(
-              image: NetworkImage(
-                'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-              ),
-              fit: BoxFit.cover,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(5),
-          decoration: const BoxDecoration(
-            color: Colors.grey,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.add, color: Colors.white, size: 20),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField(
+  // --- Field Logic Helper ---
+  Widget _buildSmartField(
+    String label,
     TextEditingController controller,
-    String label, {
+    IconData icon, {
     bool isNumber = false,
     bool isEnglish = false,
+    bool isReadOnly = false,
+    String? hint,
+    Color? fillColor,
     String? Function(String?)? validator,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: isNumber
-            ? TextInputType.number
-            : (isEnglish ? TextInputType.emailAddress : TextInputType.text),
-        textAlign: isEnglish ? TextAlign.left : TextAlign.right,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: _kInputFill,
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: const BorderSide(color: Color(0xFFD1D1D1)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: _kDarkBlue, fontSize: 13)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          readOnly: isReadOnly,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          textAlign: isEnglish ? TextAlign.left : TextAlign.right,
+          inputFormatters: isNumber ? [FilteringTextInputFormatter.digitsOnly] : [],
+          maxLength: isNumber ? 10 : null,
+          style: TextStyle(
+            fontWeight: FontWeight.bold, 
+            fontSize: 14, 
+            color: isReadOnly ? Colors.grey[600] : _kDarkBlue,
           ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-        ),
-        validator: validator,
-      ),
-    );
-  }
-
-  Widget _buildSchoolDropdown() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection("Schools").snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const LinearProgressIndicator();
-          return DropdownButtonFormField<String>(
-            decoration: InputDecoration(
-              labelText: "اسم المدرسة :",
-              filled: true,
-              fillColor: _kInputFill,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-            ),
-            value: selectedSchoolId, // نستخدم الـ ID كقيمة
-            items: snapshot.data!.docs.map((doc) {
-              return DropdownMenuItem<String>(
-                value: doc.id, // حفظ الـ ID (مثل 32438)
-                child: Text(doc['School Name_ar'].toString()),
-              );
-            }).toList(),
-            onChanged: (val) {
-              setState(() {
-                selectedSchoolId = val;
-                // الحصول على الاسم للعرض فقط
-                var doc = snapshot.data!.docs.firstWhere((d) => d.id == val);
-                selectedSchoolName = doc['School Name_ar'];
-              });
-            },
-            validator: (val) => val == null ? "مطلوب" : null,
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildGradeDropdown() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<String>(
-        decoration: InputDecoration(
-          labelText: "الصف :",
-          filled: true,
-          fillColor: _kInputFill,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-        ),
-        value: selectedGrade,
-        items: grades
-            .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-            .toList(),
-        onChanged: (val) => setState(() => selectedGrade = val),
-        validator: (val) => val == null ? "مطلوب" : null,
-      ),
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return SizedBox(
-      width: 180,
-      height: 48,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          side: const BorderSide(color: Colors.grey),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: fillColor ?? Colors.grey[100],
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13, fontWeight: FontWeight.normal),
+            counterText: "",
+            prefixIcon: Icon(icon, color: _kAccent, size: 20),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
           ),
+          validator: validator,
         ),
-        onPressed: _isLoading ? null : _submitData,
-        child: _isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Text(
-                "إرسال الطلب",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-      ),
+        const SizedBox(height: 14),
+      ],
     );
   }
 
@@ -343,35 +223,182 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        // تم استخدام .doc(_idNumber.text) لحفظ السجل برقم الهوية
-        await FirebaseFirestore.instance
-            .collection("StudentRequests")
-            .doc(_idNumber.text)
-            .set({
-              "name_ar": _nameAr.text,
-              "name_en": _nameEn.text,
-              "IDNumber": _idNumber.text,
-              "NationalAddress": _nationalAddress.text,
-              "parentPhone": _parentPhone.text,
-              "secondPhone": _secondPhone.text,
-              "SchoolName": selectedSchoolName, // حفظ الاسم
-              "SchoolId": int.parse(selectedSchoolId!), 
-              "Grade": selectedGrade,
-              "status": "pending",
-              "createdAt": Timestamp.now(),
-            });
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("تم إرسال الطلب بنجاح")));
-        Navigator.pop(context);
+        // Saving linked phone number in the Firestore document
+        await FirebaseFirestore.instance.collection("StudentRequests").doc(_idNumber.text).set({
+          "name_ar": _nameAr.text.trim(),
+          "name_en": _nameEn.text.trim(),
+          "IDNumber": _idNumber.text.trim(),
+          "NationalAddress": _nationalAddress.text.trim(),
+          "parentPhone": _parentPhone.text.trim(), // ✅ Correctly saved linked number
+          "secondPhone": _secondPhone.text.trim(),
+          "SchoolName": selectedSchoolName,
+          "schoolId": int.parse(selectedSchoolId!), 
+          "Grade": selectedGrade,
+          "status": "pending",
+          "createdAt": FieldValue.serverTimestamp(),
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم إرسال الطلب بنجاح")));
+          Navigator.pop(context);
+        }
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("خطأ: $e")));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ: $e")));
       } finally {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
       }
     }
+  }
+
+  // --- Dropdowns & Navigation Components ---
+  Widget _buildSchoolDropdown() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection("Schools").snapshots(),
+      builder: (context, snapshot) {
+        return _dropdownWrapper(
+          label: "المدرسة",
+          child: DropdownButtonFormField<String>(
+            decoration: const InputDecoration(border: InputBorder.none, hintText: "اختر المدرسة"),
+            value: selectedSchoolId,
+            items: snapshot.hasData ? snapshot.data!.docs.map((doc) {
+              return DropdownMenuItem(value: doc.id, child: Text(doc['School Name_ar'].toString()));
+            }).toList() : [],
+            onChanged: (val) {
+              setState(() {
+                selectedSchoolId = val;
+                var doc = snapshot.data!.docs.firstWhere((d) => d.id == val);
+                selectedSchoolName = doc['School Name_ar'];
+              });
+            },
+            validator: (val) => val == null ? "الرجاء اختيار المدرسة" : null,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGradeDropdown() {
+    return _dropdownWrapper(
+      label: "الصف الدراسي",
+      child: DropdownButtonFormField<String>(
+        decoration: const InputDecoration(border: InputBorder.none, hintText: "اختر الصف"),
+        value: selectedGrade,
+        items: grades.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+        onChanged: (val) => setState(() => selectedGrade = val),
+        validator: (val) => val == null ? "الرجاء اختيار الصف" : null,
+      ),
+    );
+  }
+
+  Widget _dropdownWrapper({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: _kDarkBlue, fontSize: 13)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(14)),
+          child: child,
+        ),
+        const SizedBox(height: 14),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _kDarkBlue,
+        minimumSize: const Size(220, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+      onPressed: _isLoading ? null : _submitData,
+      child: _isLoading 
+          ? const CircularProgressIndicator(color: Colors.white) 
+          : const Text("إرسال الطلب", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+    );
+  }
+
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      height: 85,
+      decoration: BoxDecoration(color: const Color(0xFFE6E6E6), border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5))),
+      child: BottomNavigationBar(
+        elevation: 0, backgroundColor: Colors.transparent, type: BottomNavigationBarType.fixed,
+        selectedItemColor: _kDarkBlue, unselectedItemColor: Colors.grey[600],
+        currentIndex: 0,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentAvatar() {
+    return Center(
+      child: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          Container(
+            width: 110, height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle, color: Colors.white,
+              border: Border.all(color: _kDarkBlue.withOpacity(0.1), width: 4),
+              image: const DecorationImage(image: NetworkImage('https://cdn-icons-png.flaticon.com/512/3135/3135715.png'), fit: BoxFit.cover),
+            ),
+          ),
+          CircleAvatar(radius: 18, backgroundColor: _kDarkBlue, child: const Icon(Icons.add_a_photo, color: Colors.white, size: 18)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  const _TopHeader({required this.title, required this.onBack});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85, padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(children: [
+        const SizedBox(width: 48), const Spacer(),
+        Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+        const Spacer(),
+        IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22)),
+      ]),
+    );
+  }
+}
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))]),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF98AF8D))),
+    );
   }
 }

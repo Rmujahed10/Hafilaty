@@ -1,10 +1,7 @@
+// ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-// --- Color Constants ---
-const Color _kDarkBlue = Color(0xFF0D1B36);
-const Color _kLightGrey = Color(0xFFF5F5F5);
 
 class RegistrationRequests extends StatefulWidget {
   const RegistrationRequests({super.key});
@@ -14,7 +11,15 @@ class RegistrationRequests extends StatefulWidget {
 }
 
 class _RegistrationRequestsState extends State<RegistrationRequests> {
+  // --- Styling Constants ---
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kAccentGreen = Color(0xFF98AF8D);
+  static const Color _kSuccess = Color(0xFF6A994E);
+  static const Color _kDanger = Color(0xFFD64545);
+
   String? currentSchoolId;
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -23,13 +28,18 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   }
 
   Future<void> _loadSchoolId() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final phone = user?.email?.split('@')[0];
-    final doc = await FirebaseFirestore.instance.collection('users').doc(phone).get();
-    if (mounted) {
-      setState(() {
-        currentSchoolId = doc.get('schoolId').toString();
-      });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final phone = user?.email?.split('@')[0];
+      final doc = await FirebaseFirestore.instance.collection('users').doc(phone).get();
+      if (mounted) {
+        setState(() {
+          currentSchoolId = doc.get('schoolId').toString();
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -38,42 +48,42 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: Column(
-          children: [
-            _buildHeader(),
-            Expanded(child: _buildRequestList()),
-          ],
-        ),
-        bottomNavigationBar: _buildBottomNav(),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height * 0.18,
-      padding: const EdgeInsets.only(top: 50, right: 20, left: 10),
-      color: _kDarkBlue,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text('طلبات التسجيل',
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
-            onPressed: () => Navigator.pop(context),
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopHeader(
+                title: "طلبات التسجيل",
+                onBack: () => Navigator.pop(context),
+              ),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
+                    : SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            _MainCardContainer(
+                              children: [
+                                _buildRequestList(),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+              ),
+              _buildBottomNav(context),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildRequestList() {
-    if (currentSchoolId == null) return const Center(child: CircularProgressIndicator());
+    if (currentSchoolId == null) return const Center(child: Text("خطأ في تحميل بيانات المدرسة"));
 
-    // Filter by the integer SchoolID field
     int schoolIdInt = int.parse(currentSchoolId!);
 
     return StreamBuilder<QuerySnapshot>(
@@ -87,93 +97,26 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
         final requests = snapshot.data!.docs;
 
         if (requests.isEmpty) {
-          return const Center(child: Text("لا توجد طلبات معلقة حالياً"));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 40),
+              child: Text("لا توجد طلبات معلقة حالياً", style: TextStyle(color: Colors.grey)),
+            ),
+          );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: requests.length,
-          itemBuilder: (context, index) {
-            final doc = requests[index];
+        return Column(
+          children: requests.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return _buildRequestCard(doc.id, data);
-          },
+            return _RequestCard(
+              requestId: doc.id,
+              data: data,
+              onAccept: () => _handleAccept(doc.id, data),
+              onReject: () => _handleRefuse(doc.id),
+            );
+          }).toList(),
         );
       },
-    );
-  }
-
-  Widget _buildRequestCard(String requestId, Map<String, dynamic> data) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Column(
-        children: [
-          // Header with Name and Actions
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFFFFD166),
-                  child: Icon(Icons.person, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(data['name_ar'] ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-                _actionButton("قبول", const Color(0xFFE8F5E9), Colors.green, () => _handleAccept(requestId, data)),
-                const SizedBox(width: 8),
-                _actionButton("رفض", const Color(0xFFFFEBEE), Colors.red, () => _handleRefuse(requestId)),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Details Body
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              children: [
-                _detailRow("اسم ولي الأمر", data['name_en'] ?? ''), // Or separate parentName field
-                _detailRow("رقم الجوال", data['parentPhone'] ?? ''),
-                _detailRow("الصف", data['Grade'] ?? ''),
-                _detailRow("رقم الهوية", data['IDNumber'] ?? ''),
-                _detailRow("العنوان الوطني", data['NationalAddress'] ?? ''),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text("$label:", style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: _kDarkBlue)),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionButton(String label, Color bg, Color text, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-        child: Text(label, style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 12)),
-      ),
     );
   }
 
@@ -181,13 +124,11 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
 
   Future<void> _handleAccept(String requestId, Map<String, dynamic> data) async {
     try {
-      // 1. Generate a Student ID (e.g., STU + timestamp suffix)
       String newStudentId = "STU${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
 
-      // 2. Add to Students Collection
       await FirebaseFirestore.instance.collection('Students').doc(newStudentId).set({
-        'BusID': "101", // Default/Fake as requested for now
-        'Latitude': 21.664476, // Default/Fake until Geocoding integrated
+        'BusID': "101", 
+        'Latitude': 21.664476, 
         'Longitude': 39.128645, 
         'SchoolID': data['schoolId'], 
         'StudentID': newStudentId,
@@ -196,7 +137,7 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
         'parentPhone': data['parentPhone'],
         'Grade': data['Grade'],
       });
-      // 3. Update Request Status
+
       await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
         'status': 'approved',
       }); 
@@ -207,30 +148,202 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   }
 
   Future<void> _handleRefuse(String requestId) async {
-    // Simply update status so parent can see it was refused
     await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
       'status': 'refused',
     });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم رفض الطلب")));
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: _kLightGrey, border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5))),
+      height: 85,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6E6E6),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+      ),
       child: BottomNavigationBar(
-        elevation: 0, backgroundColor: Colors.transparent, type: BottomNavigationBarType.fixed,
-        showSelectedLabels: false, showUnselectedLabels: false,
-        selectedItemColor: _kDarkBlue, unselectedItemColor: Colors.grey.shade400,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
         currentIndex: 0,
         onTap: (index) {
           if (index == 0) Navigator.pushReplacementNamed(context, '/AdminHome');
           if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
         ],
       ),
+    );
+  }
+}
+
+/* -------------------- Custom UI Components -------------------- */
+
+class _RequestCard extends StatelessWidget {
+  final String requestId;
+  final Map<String, dynamic> data;
+  final VoidCallback onAccept, onReject;
+
+  const _RequestCard({
+    required this.requestId,
+    required this.data,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF2F3F5)),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Color(0xFFFFD166),
+                  child: Icon(Icons.person, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    data['name_ar'] ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0D1B36)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF2F3F5)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _DetailRow(label: "رقم الجوال", value: data['parentPhone'] ?? ''),
+                const Divider(height: 20, color: Color(0xFFF9FAFB)),
+                _DetailRow(label: "الصف", value: data['Grade'] ?? ''),
+                const Divider(height: 20, color: Color(0xFFF9FAFB)),
+                _DetailRow(label: "رقم الهوية", value: data['IDNumber'] ?? ''),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _ActionBtn(label: "قبول", color: const Color(0xFF6A994E), onTap: onAccept),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionBtn(label: "رفض", color: const Color(0xFFD64545), onTap: onReject),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label, value;
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xFF98AF8D), fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0D1B36))),
+      ],
+    );
+  }
+}
+
+class _ActionBtn extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionBtn({required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Center(
+          child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 13)),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  const _TopHeader({required this.title, required this.onBack});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(
+        children: [
+          const SizedBox(width: 48), 
+          const Spacer(),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          const Spacer(),
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
 }

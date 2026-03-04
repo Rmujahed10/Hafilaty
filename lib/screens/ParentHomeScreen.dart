@@ -1,12 +1,8 @@
+// ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'RegisterStudentScreen.dart';
-
-// --- Color Constants ---
-const Color _kDarkBlue = Color(0xFF0D1B36);
-const Color _kLightGrey = Color(0xFFF5F5F5);
-const Color _kAccent = Color(0xFF6A994E);
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
@@ -16,14 +12,17 @@ class ParentHomeScreen extends StatefulWidget {
 }
 
 class _ParentHomeScreenState extends State<ParentHomeScreen> {
+  // --- Styling Constants ---
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kAccentGreen = Color(0xFF98AF8D);
+  static const Color _kTextMain = Color(0xFF101828);
+
   final user = FirebaseAuth.instance.currentUser;
 
   Stream<DocumentSnapshot> _getUserStream() {
     String phoneDocId = user?.email?.split('@')[0] ?? "";
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(phoneDocId)
-        .snapshots();
+    return FirebaseFirestore.instance.collection('users').doc(phoneDocId).snapshots();
   }
 
   @override
@@ -33,324 +32,180 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                ),
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopHeader(title: "لوحة التحكم", onLang: () {}),
+              Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 25,
-                  ),
+                  padding: const EdgeInsets.only(bottom: 20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- الترحيب الديناميكي ---
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: _getUserStream(),
-                        builder: (context, snapshot) {
-                          String name = "...";
-                          if (snapshot.hasData && snapshot.data!.exists) {
-                            name = snapshot.data!.get('firstName') ?? "مستخدم";
-                          }
-                          return Text(
-                            'صباح الخير، $name',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: _kDarkBlue,
-                            ),
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: 25),
-
-                      // --- قسم إدارة الأبناء ---
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      const SizedBox(height: 10),
+                      _MainCardContainer(
                         children: [
-                          const Text(
-                            'إدارة الأبناء',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Color(0xFF98AF8D),
-                              fontWeight: FontWeight.bold,
+                          // --- Dynamic Welcome ---
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: StreamBuilder<DocumentSnapshot>(
+                              stream: _getUserStream(),
+                              builder: (context, snapshot) {
+                                String name = "...";
+                                if (snapshot.hasData && snapshot.data!.exists) {
+                                  name = snapshot.data!.get('firstName') ?? "مستخدم";
+                                }
+                                return Text(
+                                  'صباح الخير، $name',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: _kTextMain,
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.add_circle,
-                              color: _kAccent,
-                              size: 28,
-                            ),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const RegisterStudentScreen(),
+                          const SizedBox(height: 25),
+
+                          // --- Management Section Header ---
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const _SectionHeader(title: 'إدارة الأبناء'),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle, color: Color(0xFF6A994E), size: 30),
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const RegisterStudentScreen()),
                                 ),
+                              ),
+                            ],
+                          ),
+
+                          // --- Student Requests List ---
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('StudentRequests')
+                                .where('parentPhone', isEqualTo: phoneDocId)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              var students = snapshot.data?.docs ?? [];
+                              if (students.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: Text("لا يوجد أبناء مسجلين حالياً", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                                );
+                              }
+                              return Column(
+                                children: students.map((doc) {
+                                  var data = doc.data() as Map<String, dynamic>;
+                                  return _buildInteractiveStudentCard(
+                                    context,
+                                    doc.id,
+                                    data['name_ar'] ?? '',
+                                    data['Grade'] ?? '',
+                                    data['SchoolName'] ?? '',
+                                    data['status'] ?? 'pending',
+                                  );
+                                }).toList(),
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 30),
+
+                          // --- Attendance Section ---
+                          const _SectionHeader(title: 'حالة تأكيد الحضور'),
+                          const Padding(
+                            padding: EdgeInsets.only(top: 5, bottom: 15),
+                            child: Text(
+                              'يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة ٥:٠٠ صباحاً لضمان وصول الباص في الموعد الملتزم به',
+                              style: TextStyle(fontSize: 11, color: Colors.redAccent, height: 1.4, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+
+                          // --- Approved Students Attendance List ---
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('Students')
+                                .where('parentPhone', isEqualTo: phoneDocId)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              final docs = snapshot.data?.docs ?? [];
+                              if (docs.isEmpty) {
+                                return const Text("لا يوجد أبناء لعرض الحضور", style: TextStyle(color: Colors.grey, fontSize: 13));
+                              }
+                              return Column(
+                                children: docs.map((doc) {
+                                  final data = doc.data();
+                                  final name = (data['StudentName_ar'] ?? data['StudentName'] ?? '').toString();
+                                  return _buildAttendanceCard(name);
+                                }).toList(),
                               );
                             },
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 10),
-
-                      // --- عرض بطاقات الطلاب (الطلبات) ---
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection(
-                              'StudentRequests',
-                            ) // نغير المجموعة هنا لنراقب الطلبات
-                            .where('parentPhone', isEqualTo: phoneDocId)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          var students = snapshot.data?.docs ?? [];
-                          if (students.isEmpty) {
-                            return const Center(
-                              child: Text(
-                                "لا يوجد أبناء مسجلين حالياً",
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            );
-                          }
-                          return Column(
-  children: students.map((doc) {
-    var data = doc.data() as Map<String, dynamic>;
-    return _buildInteractiveStudentCard(
-      context,
-      doc.id, // ✅ هذا أهم شيء
-      data['name_ar'] ?? '',
-      data['Grade'] ?? '',
-      data['SchoolName'] ?? '',
-      data['status'] ?? 'pending',
-    );
-  }).toList(),
-);;
-                        },
-                      ),
-
-                      const SizedBox(height: 30),
-
-                      // --- حالة تأكيد الحضور (للمقبولين فقط) ---
-                      const Text(
-                        'حالة تأكيد الحضور',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Color(0xFF98AF8D),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.only(top: 5, bottom: 15),
-                        child: Text(
-                          'يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة ٥:٠٠ صباحاً لضمان وصول الباص في الموعد الملتزم به',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.redAccent,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-
-                      // هنا يمكنك مستقبلاً فلترة الطلاب المقبولين فقط لعرض تأكيد حضورهم
-                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-  stream: FirebaseFirestore.instance
-      .collection('Students')
-      .where('parentPhone', isEqualTo: phoneDocId)
-      .snapshots(),
-  builder: (context, snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (snapshot.hasError) {
-      return Center(child: Text("خطأ: ${snapshot.error}"));
-    }
-
-    final docs = snapshot.data?.docs ?? [];
-
-    if (docs.isEmpty) {
-      return const Text(
-        "لا يوجد أبناء لعرض الحضور",
-        style: TextStyle(color: Colors.grey, fontSize: 13),
-      );
-    }
-
-    return Column(
-      children: docs.map((doc) {
-        final data = doc.data();
-
-        final name = (data['StudentName_ar'] ?? data['StudentName'] ?? '').toString();
-
-        return _buildAttendanceCard(name);
-      }).toList(),
-    );
-  },
-),]
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+              _buildBottomNav(context),
+            ],
+          ),
         ),
-        bottomNavigationBar: _buildBottomNav(context),
       ),
     );
   }
 
-  // ويدجت البطاقة التفاعلية التي طلبتها
-  Widget _buildInteractiveStudentCard(
-    BuildContext context,
-    String requestId,
-    String name,
-    String grade,
-    String school,
-    String status,
-  ) {
+  // --- Specialized Interactive Card ---
+  Widget _buildInteractiveStudentCard(BuildContext context, String requestId, String name, String grade, String school, String status) {
     bool isApproved = status == 'approved';
-
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFFF2F3F5)),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: ListTile(
+        onTap: isApproved
+            ? () => Navigator.pushNamed(context, '/manage_child', arguments: {'requestId': requestId})
+            : () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("الطلب لا يزال قيد المعالجة"))),
         contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
           radius: 25,
-          backgroundColor: isApproved
-              ? const Color(0xFFFFD166)
-              : Colors.grey.shade300,
+          backgroundColor: isApproved ? const Color(0xFFFFD166) : Colors.grey.shade300,
           child: const Icon(Icons.person, color: Colors.white),
         ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: _kDarkBlue,
-          ),
-        ),
-        subtitle: Text(
-          'المدرسة: $school\nالصف: $grade',
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _kHeaderBlue)),
+        subtitle: Text('المدرسة: $school\nالصف: $grade', style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _buildStatusBadge(status),
-            if (isApproved)
-              const Icon(Icons.chevron_left, color: Colors.grey, size: 20),
+            if (isApproved) const Icon(Icons.chevron_right, size: 14, color: Colors.grey),
           ],
         ),
-      onTap: isApproved
-    ? () {
-        Navigator.pushNamed(
-          context,
-          '/manage_child',
-          arguments: {'requestId': requestId},
-        );
-      }
-    : () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("الطلب لا يزال قيد المعالجة، يرجى الانتظار."),
-          ),
-        );
-      },
       ),
     );
   }
 
-  // ملصق الحالة الملون
   Widget _buildStatusBadge(String status) {
-    Color color;
-    String text;
-
-    switch (status) {
-      case 'approved':
-        color = Colors.green;
-        text = "مسجل";
-        break;
-      case 'rejected':
-        color = Colors.red;
-        text = "تم الرفض";
-        break;
-      default:
-        color = Colors.orange;
-        text = "جاري المعالجة";
-    }
-
+    Color color = status == 'approved' ? Colors.green : (status == 'rejected' ? Colors.red : Colors.orange);
+    String text = status == 'approved' ? "مسجل" : (status == 'rejected' ? "مرفوض" : "قيد المعالجة");
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color, width: 0.5),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // --- باقي الودجت السابقة ---
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height * 0.15,
-      padding: const EdgeInsets.only(top: 40, right: 20, left: 10),
-      color: _kDarkBlue,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'لوحة التحكم',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.language, color: Colors.white, size: 22),
-            onPressed: () {},
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: color, width: 0.5)),
+      child: Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -358,68 +213,111 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD4E09B).withOpacity(0.4),
-        borderRadius: BorderRadius.circular(15),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFD4E09B).withOpacity(0.4), borderRadius: BorderRadius.circular(15)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, size: 18, color: Colors.grey),
-              ),
+              const CircleAvatar(radius: 18, backgroundColor: Colors.white, child: Icon(Icons.person, size: 18, color: Colors.grey)),
               const SizedBox(width: 12),
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _kDarkBlue,
-                  fontSize: 14,
-                ),
-              ),
+              Text(name, style: const TextStyle(fontWeight: FontWeight.w800, color: _kHeaderBlue, fontSize: 14)),
             ],
           ),
           ElevatedButton(
             onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text(
-              'غائب',
-              style: TextStyle(color: Colors.white, fontSize: 12),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            child: const Text('غائب', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
+  // ✅ New Standardized Bottom Navigation with Titles
   Widget _buildBottomNav(BuildContext context) {
-    return BottomNavigationBar(
-      selectedItemColor: _kDarkBlue,
-      unselectedItemColor: Colors.grey,
-      currentIndex: 0,
-      onTap: (index) {
-        if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_rounded),
-          label: 'الرئيسية',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_rounded),
-          label: 'الملف',
-        ),
-      ],
+    return Container(
+      height: 85,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6E6E6),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+      ),
+      child: BottomNavigationBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+        ],
+      ),
+    );
+  }
+}
+
+/* -------------------- Generic Project UI Components -------------------- */
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onLang;
+  const _TopHeader({required this.title, required this.onLang});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(
+        children: [
+          IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white)),
+          const Spacer(),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          const Spacer(),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+}
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF98AF8D))),
     );
   }
 }

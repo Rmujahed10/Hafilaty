@@ -1,13 +1,8 @@
 // ignore_for_file: file_names
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'student_info_screen.dart';
-
-// --- Color Constants ---
-const Color _kDarkBlue = Color(0xFF0D1B36);
-const Color _kLightGrey = Color(0xFFF5F5F5);
 
 class StudentsManagementScreen extends StatefulWidget {
   const StudentsManagementScreen({super.key});
@@ -18,6 +13,10 @@ class StudentsManagementScreen extends StatefulWidget {
 }
 
 class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
+  // --- Styling Constants ---
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+
   String? currentSchoolId;
   bool isLoading = true;
 
@@ -35,7 +34,6 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
       
       if (mounted) {
         setState(() {
-          // Fields: schoolId is stored as String in users collection
           currentSchoolId = userDoc.get('schoolId').toString();
           isLoading = false;
         });
@@ -49,45 +47,37 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl, // Correct RTL orientation
+      textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: isLoading 
-            ? const Center(child: CircularProgressIndicator(color: _kDarkBlue))
-            : Column(
-                children: [
-                  _buildHeader(),
-                  Expanded(child: _buildStudentList()),
-                ],
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopHeader(
+                title: "إدارة الطلاب",
+                onBack: () => Navigator.pushReplacementNamed(context, '/AdminHome'),
               ),
-        bottomNavigationBar: _buildBottomNav(),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height * 0.18,
-      padding: const EdgeInsets.only(top: 50, right: 20, left: 10),
-      color: _kDarkBlue,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'إدارة الطلاب',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+              Expanded(
+                child: isLoading 
+                    ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
+                    : SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            _MainCardContainer(
+                              children: [
+                                _buildStudentList(),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+              ),
+              _buildBottomNav(context), // ✅ Standardized Labeled Toolbar
+            ],
           ),
-          // Back button pointing to AdminHome
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/AdminHome'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -95,121 +85,185 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   Widget _buildStudentList() {
     if (currentSchoolId == null) return const Center(child: Text("خطأ في تحميل البيانات"));
     
-    // Convert to int for 'Students' collection query
     int schoolIdInt = int.parse(currentSchoolId!);
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Students')
           .where('SchoolID', isEqualTo: schoolIdInt)
+          .orderBy('StudentName_ar', descending: false)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return const Center(child: Text('حدث خطأ'));
+        if (snapshot.hasError) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Text(
+                'يرجى الانتظار لتجهيز البيانات والترتيب الأبجدي...',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+            ),
+          );
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: CircularProgressIndicator(),
+          ));
         }
 
         final students = snapshot.data?.docs ?? [];
         if (students.isEmpty) {
-          return const Center(child: Text('لا يوجد طلاب حالياً', style: TextStyle(color: Colors.grey)));
+          return const Center(child: Padding(
+            padding: EdgeInsets.only(top: 40),
+            child: Text('لا يوجد طلاب حالياً', style: TextStyle(color: Colors.grey)),
+          ));
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
-          itemCount: students.length,
-          itemBuilder: (context, index) {
-            final data = students[index].data() as Map<String, dynamic>;
-            return _buildStudentCard(
-              (data['StudentName_ar'] ?? data['StudentName'] ?? 'اسم غير متوفر').toString(),
-              students[index].id,
+        return Column(
+          children: students.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _StudentRowItem(
+              name: (data['StudentName_ar'] ?? data['StudentName'] ?? 'اسم غير متوفر').toString(),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentInfoScreen(studentDocId: doc.id),
+                  ),
+                );
+              },
             );
-          },
+          }).toList(),
         );
       },
     );
   }
 
-  Widget _buildStudentCard(String name, String docId) {
+  // ✅ Standardized Bottom Navigation with Titles
+  Widget _buildBottomNav(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 15),
+      height: 85,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => StudentInfoScreen(studentDocId: docId),
-            ),
-          );
-        },
-        // Avatar on the Right side
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFD166),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.person, color: Colors.white, size: 22),
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: _kDarkBlue,
-          ),
-        ),
-        // Arrow pointing LEFT on the Left side
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 28),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _kLightGrey,
-        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
+        color: const Color(0xFFE6E6E6),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
       ),
       child: BottomNavigationBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         type: BottomNavigationBarType.fixed,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        selectedItemColor: _kDarkBlue,
-        unselectedItemColor: Colors.grey.shade400,
-        currentIndex: 0,
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        currentIndex: 0, // Home is active
         onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/AdminHome');
-          } else if (index == 1) {
+          if (index == 1) {
             Navigator.pushReplacementNamed(context, '/role_home');
           }
         },
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded, size: 28),
-            label: 'Home',
+            label: 'الرئيسية',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_rounded, size: 28),
-            label: 'Profile',
+            label: 'الملف الشخصي',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/* -------------------- Custom UI Components -------------------- */
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  const _TopHeader({required this.title, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(
+        children: [
+          const SizedBox(width: 48), 
+          const Spacer(),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          const Spacer(),
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+class _StudentRowItem extends StatelessWidget {
+  final String name;
+  final VoidCallback onTap;
+
+  const _StudentRowItem({required this.name, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF2F3F5)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000), 
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: const BoxDecoration(color: Color(0xFFFFD166), shape: BoxShape.circle),
+          child: const Icon(Icons.person, color: Colors.white, size: 24),
+        ),
+        title: Text(
+          name,
+          style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF101828), fontSize: 15),
+        ),
+        trailing: const Icon(Icons.chevron_right, size: 18, color: Color(0xFF98A2B3)),
       ),
     );
   }

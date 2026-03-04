@@ -3,11 +3,14 @@
 import 'package:flutter/material.dart';
 import 'RegistrationScreen.dart';
 
-const Color kPrimaryColor = Color(0xFF0D1B36);
-const Color kAccentColor = Color(0xFF8BAA3C);
-
 class ChooseRoleScreen extends StatelessWidget {
   const ChooseRoleScreen({super.key});
+
+  // --- Styling Constants ---
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kAccentGreen = Color(0xFF98AF8D);
+  static const Color _kTextMain = Color(0xFF101828);
 
   void _goToRegistration(BuildContext context, String roleKey) {
     Navigator.push(
@@ -26,103 +29,65 @@ class ChooseRoleScreen extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: kPrimaryColor,
+        backgroundColor: _kBg,
         body: SafeArea(
           child: Column(
             children: [
-              // ---------------- AppBar ----------------
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    // SAME ARROW STYLE + ALWAYS LEFT
-
-                    const Spacer(),
-
-                    const Text(
-                      "تسجيل حساب جديد",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const Spacer(),
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        onPressed: () {
-                          // ALWAYS return to login page
-                          Navigator.pushNamedAndRemoveUntil(
-                              context, "/login", (route) => false);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              // ✅ Standardized Top Header
+              _TopHeader(
+                title: "تسجيل حساب جديد",
+                onBack: () => Navigator.pushNamedAndRemoveUntil(
+                    context, "/login", (route) => false),
               ),
-
-              // ---------------- White Content ----------------
+              
               Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 20),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      // ✅ Signature 75% Min-Height Card
+                      _MainCardContainer(
+                        children: [
+                          const SizedBox(height: 10),
+                          
+                          const _SectionLabel(label: "يرجى اختيار نوع الحساب للتسجيل"),
+                          
+                          const SizedBox(height: 30),
 
-                        const Text(
-                          "يرجى اختيار نوع الحساب للتسجيل",
-                          style: TextStyle(
-                            color: kAccentColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                          // --- Role Selection Buttons ---
+                          _RoleButton(
+                            title: "السائق",
+                            icon: Icons.directions_bus,
+                            onTap: () => _goToRegistration(context, "driver"),
                           ),
-                        ),
+                          const SizedBox(height: 16),
 
-                        const SizedBox(height: 40),
+                          _RoleButton(
+                            title: "ولي الأمر",
+                            icon: Icons.family_restroom,
+                            onTap: () => _goToRegistration(context, "parent"),
+                          ),
+                          const SizedBox(height: 16),
 
-                        _roleButton(
-                          title: "السائق",
-                          icon: Icons.directions_bus,
-                          onTap: () => _goToRegistration(context, "driver"),
-                        ),
-                        const SizedBox(height: 20),
+                          _RoleButton(
+                            title: "المشرف التعليمي",
+                            icon: Icons.person_pin_outlined,
+                            onTap: () => _goToRegistration(context, "admin"),
+                          ),
 
-                        _roleButton(
-                          title: "ولي الأمر",
-                          icon: Icons.family_restroom,
-                          onTap: () => _goToRegistration(context, "parent"),
-                        ),
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 40),
 
-                        _roleButton(
-                          title: "المشرف التعليمي",
-                          icon: Icons.person_pin_outlined,
-                          onTap: () => _goToRegistration(context, "admin"),
-                        ),
-
-                        const Spacer(),
-
-                        const Text(
-                          "جميع الحقوق محفوظة 2025",
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                          const Text(
+                            "جميع الحقوق محفوظة ٢٠٢٦",
+                            style: TextStyle(
+                              color: Colors.grey, 
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -132,42 +97,137 @@ class ChooseRoleScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _roleButton({
-    required String title,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
+/* -------------------- Custom UI Components -------------------- */
+
+class _RoleButton extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _RoleButton({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
           color: Colors.white,
-          boxShadow: [
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFF2F3F5)),
+          boxShadow: const [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 4),
-            ),
+              color: Color(0x0D000000), 
+              blurRadius: 12, 
+              offset: Offset(0, 6),
+            )
           ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: kAccentColor, size: 35),
-            const SizedBox(height: 10),
+            Icon(icon, color: const Color(0xFF98AF8D), size: 40),
+            const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
                 fontSize: 18,
-                color: kPrimaryColor,
-                fontWeight: FontWeight.bold,
+                color: Color(0xFF0D1B36),
+                fontWeight: FontWeight.w900,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack;
+  const _TopHeader({required this.title, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(
+        children: [
+          const SizedBox(width: 48), 
+          const Spacer(),
+          Text(
+            title, 
+            style: const TextStyle(
+              color: Colors.white, 
+              fontSize: 20, 
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000), 
+            blurRadius: 16, 
+            offset: Offset(0, 8),
+          )
+        ],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: Text(
+        label, 
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 16, 
+          fontWeight: FontWeight.w900, 
+          color: Color(0xFF98AF8D),
         ),
       ),
     );

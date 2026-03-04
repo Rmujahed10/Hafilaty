@@ -1,9 +1,6 @@
+// ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// --- Color Constants ---
-const Color _kBlue = Color(0xFF0D1B36);
-const Color _kYellow = Color(0xFFFFC83D);
 
 class StudentInfoScreen extends StatefulWidget {
   final String studentDocId;
@@ -14,6 +11,12 @@ class StudentInfoScreen extends StatefulWidget {
 }
 
 class _StudentInfoScreenState extends State<StudentInfoScreen> {
+  // --- Styling Constants ---
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kAccentGreen = Color(0xFF98AF8D);
+  static const Color _kDanger = Color(0xFFD64545);
+
   bool isArabic = true;
 
   DocumentReference get _ref => FirebaseFirestore.instance
@@ -22,195 +25,318 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Main layout is ALWAYS RTL to keep UI elements (Back button, Nav) fixed
     return Directionality(
-      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+      textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: _kBlue,
-        body: StreamBuilder<DocumentSnapshot>(
-          stream: _ref.snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              );
-            }
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: _ref.snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator(color: _kHeaderBlue));
+              }
 
-            final data = snapshot.data!.data() as Map<String, dynamic>;
+              final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+              
+              // Select name based on language toggle
+              final name = isArabic
+                  ? (data['StudentName_ar'] ?? data['StudentNameAr'] ?? 'اسم غير معروف')
+                  : (data['StudentName'] ?? data['StudentNameEn'] ?? 'Unknown Name');
 
-            return SafeArea(
-              child: Stack(
+              return Column(
                 children: [
-                  // --- HEADER ICONS SECTION ---
-                  Positioned(
-                    top: 8,
-                    left: 12,
-                    right: 12,
-                    child: Directionality(
-                      // Force LTR for the header only to keep icon positions fixed
-                      textDirection: TextDirection.ltr,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  _TopHeader(
+                    title: isArabic ? "بيانات الطالب" : "Student Details",
+                    onBack: () => Navigator.pop(context),
+                    onLang: () => setState(() => isArabic = !isArabic),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Column(
                         children: [
-                          // Language icon - FIXED AT LEFT
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                isArabic = !isArabic;
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.language,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                          ),
-                          // Back button - FIXED AT RIGHT
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: Icon(
-                              // Adjust chevron direction based on the current language
-                              isArabic ? Icons.chevron_right : Icons.chevron_left,
-                              color: Colors.white,
-                              size: 30,
-                            ),
+                          const SizedBox(height: 10),
+                          _MainCardContainer(
+                            children: [
+                              // ✅ Localized Directionality: Only flips the data inside the card
+                              Directionality(
+                                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                                child: Column(
+                                  children: [
+                                    _ProfileSection(name: name.toString()),
+                                    const SizedBox(height: 24),
+                                    
+                                    _SectionLabel(label: isArabic ? "المعلومات العامة" : "General Info"),
+                                    _InfoGroupCard(
+                                      children: [
+                                        _InfoRow(
+                                          label: isArabic ? "رقم الطالب" : "Student ID", 
+                                          value: data['StudentID'],
+                                        ),
+                                        const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                                        _InfoRow(
+                                          label: isArabic ? "رقم المدرسة" : "School ID", 
+                                          value: data['SchoolID'],
+                                        ),
+                                        const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                                        _InfoRow(
+                                          label: isArabic ? "رقم الحافلة" : "Bus ID", 
+                                          value: data['BusID'],
+                                        ),
+                                      ],
+                                    ),
+                                    
+                                    const SizedBox(height: 24),
+                                    
+                                    _SectionLabel(label: isArabic ? "الموقع الجغرافي" : "Geographical Location"),
+                                    _InfoGroupCard(
+                                      children: [
+                                        _InfoRow(
+                                          label: isArabic ? "خطوط الطول" : "Latitude", 
+                                          value: data['Latitude'],
+                                        ),
+                                        const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                                        _InfoRow(
+                                          label: isArabic ? "خطوط العرض" : "Longitude", 
+                                          value: data['Longitude'],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 32),
+                              
+                              _ActionButton(
+                                label: isArabic ? "حذف بيانات الطالب" : "Delete Student",
+                                icon: Icons.delete_outline,
+                                color: _kDanger,
+                                onTap: () => _confirmDelete(context),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ),
-
-                  // --- STUDENT INFO CARD ---
-                  Align(
-                    alignment: Alignment.center,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
-                              blurRadius: 20,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                const Spacer(),
-                                Icon(Icons.edit, color: Colors.grey.shade500),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            const CircleAvatar(
-                              radius: 45,
-                              backgroundColor: _kYellow,
-                              child: Icon(
-                                Icons.person,
-                                size: 50,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            Text(
-                              isArabic
-                                  ? (data['StudentNameAr'] ??
-                                        data['StudentName_ar'] ??
-                                        'اسم غير معروف')
-                                  : (data['StudentNameEn'] ??
-                                        data['StudentName'] ??
-                                        'Unknown Name'),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            
-                            // Info Boxes
-                            _infoBox(
-                              isArabic ? "رقم الطالب التعريفي" : "Student ID",
-                              data['StudentID'],
-                            ),
-                            _infoBox(
-                              isArabic ? "خطوط الطول" : "Latitude",
-                              data['Latitude'],
-                            ),
-                            _infoBox(
-                              isArabic ? "خطوط العرض" : "Longitude",
-                              data['Longitude'],
-                            ),
-                            _infoBox(
-                              isArabic ? "رقم المدرسة التعريفي" : "School ID",
-                              data['SchoolID'],
-                            ),
-                            _infoBox(
-                              isArabic ? "رقم الباص التعريفي" : "Bus ID",
-                              data['BusID'],
-                            ),
-                            
-                            const SizedBox(height: 25),
-
-                            // Delete Action
-                            InkWell(
-                              onTap: () async {
-                                await _ref.delete();
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                width: 60,
-                                height: 60,
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.delete,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  _buildBottomNav(context),
                 ],
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  Widget _infoBox(String label, dynamic value) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBDBDBD)),
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Directionality(
+        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(isArabic ? "تأكيد الحذف" : "Confirm Delete"),
+          content: Text(isArabic ? "هل أنت متأكد من حذف بيانات هذا الطالب؟" : "Are you sure you want to delete this student?"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(isArabic ? "إلغاء" : "Cancel")),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true), 
+              child: Text(isArabic ? "حذف" : "Delete", style: const TextStyle(color: _kDanger)),
+            ),
+          ],
+        ),
       ),
+    );
+
+    if (confirm == true) {
+      await _ref.delete();
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      height: 85,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6E6E6),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+      ),
+      child: BottomNavigationBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 0) Navigator.pushReplacementNamed(context, '/AdminHome');
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+        },
+        items: [
+          BottomNavigationBarItem(icon: const Icon(Icons.home_rounded, size: 28), label: isArabic ? 'الرئيسية' : 'Home'),
+          BottomNavigationBarItem(icon: const Icon(Icons.person_rounded, size: 28), label: isArabic ? 'الملف' : 'Profile'),
+        ],
+      ),
+    );
+  }
+}
+
+/* -------------------- UI COMPONENTS -------------------- */
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onBack, onLang;
+  const _TopHeader({required this.title, required this.onBack, required this.onLang});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(
+        children: [
+          IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white, size: 22)),
+          const Spacer(),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          const Spacer(),
+          IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _ProfileSection extends StatelessWidget {
+  final String name;
+  const _ProfileSection({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Icon(Icons.edit_note, color: Colors.grey.shade400, size: 28),
+        ),
+        Container(
+          width: 90, height: 90,
+          decoration: const BoxDecoration(color: Color(0xFFFFC83D), shape: BoxShape.circle),
+          child: const Icon(Icons.person, size: 55, color: Colors.white),
+        ),
+        const SizedBox(height: 16),
+        Text(name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF101828))),
+      ],
+    );
+  }
+}
+
+class _InfoGroupCard extends StatelessWidget {
+  final List<Widget> children;
+  const _InfoGroupCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF2F3F5)),
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final dynamic value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            "$label :",
-            style: const TextStyle(fontWeight: FontWeight.bold, color: _kBlue),
-          ),
-          Text(
-            value?.toString() ?? '',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF667085), fontSize: 13)),
+          Text(value?.toString() ?? '---', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0D1B36), fontSize: 14)),
         ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10, right: 4),
+        child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF98AF8D))),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionButton({required this.label, required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14)),
+          ],
+        ),
       ),
     );
   }

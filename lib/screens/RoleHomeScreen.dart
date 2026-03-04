@@ -1,13 +1,7 @@
 // ignore_for_file: file_names
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// --- Color Constants ---
-const Color kDarkBlue = Color(0xFF0D1B36);
-const Color kAccent = Color(0xFF6A994E);
-const Color kLightGrey = Color(0xFFF5F5F5);
 
 class RoleHomeScreen extends StatefulWidget {
   const RoleHomeScreen({super.key});
@@ -17,6 +11,12 @@ class RoleHomeScreen extends StatefulWidget {
 }
 
 class _RoleHomeScreenState extends State<RoleHomeScreen> {
+  // --- Styling Constants ---
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
+  static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kAccentGreen = Color(0xFF98AF8D);
+  static const Color _kDanger = Color(0xFFD64545);
+
   String role = "";
   String fullName = "";
   bool loading = true;
@@ -31,16 +31,10 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
-      // Derived phone from email as per your custom auth system
       final phone = user.email?.split('@')[0];
-
       if (phone == null) return;
 
-      DocumentSnapshot doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(phone)
-          .get();
+      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('users').doc(phone).get();
 
       if (!doc.exists) {
         setState(() => loading = false);
@@ -71,43 +65,30 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            title: const Text('حذف الحساب'),
-            content: const Text(
-              'هل أنت متأكد أنك تريد حذف الحساب نهائيًا؟ لا يمكن التراجع عن هذه العملية.',
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('حذف الحساب', style: TextStyle(fontWeight: FontWeight.bold)),
+            content: const Text('هل أنت متأكد أنك تريد حذف الحساب نهائيًا؟ لا يمكن التراجع عن هذه العملية.'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('إلغاء'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('حذف', style: TextStyle(color: Colors.red)),
+                child: const Text('حذف', style: TextStyle(color: _kDanger, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
         );
       },
     );
-
-    if (confirm == true) {
-      await _deleteAccount(context);
-    }
+    if (confirm == true) await _deleteAccount(context);
   }
 
   Future<void> _deleteAccount(BuildContext context) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
       final phone = user.email?.split('@')[0];
-
-      // 1) Delete Firestore data using phone number as Doc ID
       await FirebaseFirestore.instance.collection('users').doc(phone).delete();
-
-      // 2) Delete Auth account
       await user.delete();
-
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,158 +99,198 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: Column(
-          children: [
-            // Sync Header with AdminHome
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 30),
-                    // Profile Header
-                    _buildProfileCircle(),
-                    const SizedBox(height: 20),
-                    _buildMenuCard(),
-                    const SizedBox(height: 30),
-                  ],
-                ),
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopHeader(title: "الملف الشخصي", onLang: () {}),
+              Expanded(
+                child: loading 
+                  ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          _MainCardContainer(
+                            children: [
+                              const SizedBox(height: 10),
+                              // Profile Header Section
+                              _ProfileAvatar(fullName: fullName),
+                              const SizedBox(height: 30),
+                              
+                              // --- Menu Items with Dividers ---
+                              if (role == "parent") ...[
+                                _MenuListItem(label: "أبنائي", icon: Icons.family_restroom, onTap: () {}),
+                                const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                              ],
+                              
+                              _MenuListItem(
+                                label: "تعديل الملف الشخصي", 
+                                icon: Icons.edit_outlined, 
+                                onTap: () => Navigator.pushNamed(context, "/edit_profile"),
+                              ),
+                              const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                              
+                              _MenuListItem(label: "تغيير كلمة المرور", icon: Icons.lock_outline, onTap: () {}),
+                              const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                              
+                              _MenuListItem(label: "الدعم الفني", icon: Icons.headset_mic_outlined, onTap: () {}),
+                              
+                              // Thick Divider before the Danger Zone
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 10),
+                                child: Divider(color: Color(0xFFF2F3F5), thickness: 6),
+                              ),
+                              
+                              _MenuListItem(
+                                label: "حذف الحساب", 
+                                icon: Icons.delete_outline, 
+                                isDanger: true,
+                                onTap: () => _confirmDeleteAccount(context),
+                              ),
+                              const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                              
+                              _MenuListItem(
+                                label: "تسجيل الخروج", 
+                                icon: Icons.logout, 
+                                isDanger: true,
+                                onTap: () => _signOut(context),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
               ),
-            ),
-          ],
-        ),
-        bottomNavigationBar: _buildBottomNav(),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height * 0.18,
-      padding: const EdgeInsets.only(top: 50, right: 20, left: 20),
-      color: kDarkBlue,
-      alignment: Alignment.topRight,
-      child: const Text(
-        "الملف الشخصي",
-        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _buildProfileCircle() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: const BoxDecoration(color: kAccent, shape: BoxShape.circle),
-          child: const CircleAvatar(
-            radius: 50,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person, size: 60, color: Colors.grey),
+              _buildBottomNav(context),
+            ],
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          fullName,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kDarkBlue),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMenuCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          children: [
-            if (role == "parent")
-              _menuItem(label: "أبنائي", icon: Icons.family_restroom, onTap: null),
-            _menuItem(label: "تعديل الملف الشخصي", icon: Icons.edit, 
-              onTap: () => Navigator.pushNamed(context, "/edit_profile")),
-            _menuItem(label: "تغيير كلمة المرور", icon: Icons.lock, onTap: null),
-            _menuItem(label: "الدعم الفني", icon: Icons.headset_mic_outlined, onTap: null),
-            
-            const Divider(indent: 20, endIndent: 20, height: 30),
-            
-            _dangerItem(label: "حذف الحساب", icon: Icons.delete_forever, 
-              onTap: () => _confirmDeleteAccount(context)),
-            _dangerItem(label: "تسجيل الخروج", icon: Icons.logout, 
-              onTap: () => _signOut(context)),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _menuItem({required String label, required IconData icon, VoidCallback? onTap}) {
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(icon, color: kAccent),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: kDarkBlue)),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      enabled: onTap != null,
-    );
-  }
-
-  Widget _dangerItem({required String label, required IconData icon, required VoidCallback onTap}) {
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(icon, color: Colors.red.shade400),
-      title: Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade400)),
-    );
-  }
-
-  Widget _buildBottomNav() {
+  // ✅ Labeled Bottom Navigation Bar
+  Widget _buildBottomNav(BuildContext context) {
     return Container(
+      height: 85,
       decoration: BoxDecoration(
-        color: kLightGrey,
-        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
+        color: const Color(0xFFE6E6E6),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
       ),
       child: BottomNavigationBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         type: BottomNavigationBarType.fixed,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        selectedItemColor: kDarkBlue,
-        unselectedItemColor: Colors.grey.shade400,
-        currentIndex: 1, // Profile is active
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        currentIndex: 1,
         onTap: (index) {
           if (index == 0) {
-            // Navigate based on Role
-            if (role == "admin") {
-              Navigator.pushReplacementNamed(context, '/AdminHome');
-            } else if (role == "parent") {
-              Navigator.pushReplacementNamed(context, '/parent_home');
-            } else if (role == "driver") {
-              Navigator.pushReplacementNamed(context, '/DriverHome');
-            }
+            if (role == "admin") Navigator.pushReplacementNamed(context, '/AdminHome');
+            else if (role == "parent") Navigator.pushReplacementNamed(context, '/parent_home');
+            else if (role == "driver") Navigator.pushReplacementNamed(context, '/DriverHome');
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
         ],
       ),
     );
+  }
+}
+
+/* -------------------- Custom UI Kit -------------------- */
+
+class _MainCardContainer extends StatelessWidget {
+  final List<Widget> children;
+  const _MainCardContainer({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+class _MenuListItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isDanger;
+
+  const _MenuListItem({required this.label, required this.icon, required this.onTap, this.isDanger = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDanger ? const Color(0xFFD64545) : const Color(0xFF101828);
+    final iconColor = isDanger ? const Color(0xFFD64545) : const Color(0xFF98AF8D);
+    
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 24),
+            const SizedBox(width: 16),
+            Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+            const Spacer(),
+            if (!isDanger)
+              const Icon(Icons.chevron_right, size: 20, color: Color(0xFF98A2B3)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onLang;
+  const _TopHeader({required this.title, required this.onLang});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 85, padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      child: Row(children: [
+        IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white)),
+        const Spacer(),
+        Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+        const Spacer(),
+        const SizedBox(width: 48),
+      ]),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  final String fullName;
+  const _ProfileAvatar({required this.fullName});
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Container(width: 90, height: 90, decoration: const BoxDecoration(color: Color(0xFFE6E6E6), shape: BoxShape.circle), child: const Icon(Icons.person, size: 50, color: Colors.white)),
+      const SizedBox(height: 12),
+      Text(fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF101828))),
+    ]);
   }
 }
