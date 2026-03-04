@@ -15,8 +15,7 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
-  static const Color _kBusGreen = Color(0xFFC8D8A4); // ✅ Your original olive green
-  static const Color _kAccentGreen = Color(0xFF6A994E);
+// ✅ Your original olive green
 
   String? currentSchoolId;
   bool isLoading = true;

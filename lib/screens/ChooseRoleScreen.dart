@@ -7,10 +7,7 @@ class ChooseRoleScreen extends StatelessWidget {
   const ChooseRoleScreen({super.key});
 
   // --- Styling Constants ---
-  static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
-  static const Color _kAccentGreen = Color(0xFF98AF8D);
-  static const Color _kTextMain = Color(0xFF101828);
 
   void _goToRegistration(BuildContext context, String roleKey) {
     Navigator.push(

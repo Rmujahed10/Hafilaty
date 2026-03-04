@@ -14,7 +14,6 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
-  static const Color _kAccentGreen = Color(0xFF98AF8D);
   static const Color _kDanger = Color(0xFFD64545);
 
   String role = "";
