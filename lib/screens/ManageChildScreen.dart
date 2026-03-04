@@ -1,7 +1,6 @@
-// ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart' hide TextDirection; 
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:hijri/hijri_calendar.dart';
 
 class ManageChildScreen extends StatefulWidget {
@@ -18,11 +17,81 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
   String attendance = "غائب";
 
+  // --- دالة الحذف الشاملة (المشكلة 2 و 3) ---
+  Future<void> _handleDeleteAccount(
+    String requestId,
+    String studentName,
+  ) async {
+    bool confirm =
+        await showDialog(
+          context: context,
+          builder: (ctx) => Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              title: const Text("تأكيد الحذف النهائي"),
+              content: Text(
+                "هل أنت متأكد من حذف حساب الطالب ($studentName)؟ سيتم مسح البيانات من كافة السجلات.",
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text("إلغاء"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(
+                    "حذف الآن",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+
+    if (confirm) {
+      try {
+        // 1. الحذف من كولكشن StudentRequests
+        await FirebaseFirestore.instance
+            .collection('StudentRequests')
+            .doc(requestId)
+            .delete();
+
+        // 2. الحذف من كولكشن Students (البحث بالاسم)
+        var studentDoc = await FirebaseFirestore.instance
+            .collection('Students')
+            .where('StudentName_ar', isEqualTo: studentName)
+            .get();
+
+        for (var doc in studentDoc.docs) {
+          await doc.reference.delete();
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("تم حذف كافة بيانات الطالب بنجاح")),
+          );
+          // العودة للشاشة السابقة لتصفير الحالة (حل المشكلة 3)
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        debugPrint("Error during deletion: $e");
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    if (args == null) return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
-    
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args == null)
+      return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
+
     final requestId = args['requestId'] as String;
 
     return Directionality(
@@ -36,25 +105,20 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                 .doc(requestId)
                 .snapshots(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
+              if (snapshot.connectionState == ConnectionState.waiting)
                 return const Center(child: CircularProgressIndicator());
-              }
+              if (!snapshot.hasData || !snapshot.data!.exists)
+                return const Center(child: Text("تم حذف البيانات بنجاح"));
 
               final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
               final nameAr = (data['name_ar'] ?? '').toString();
-              final nameEn = (data['name_en'] ?? '').toString();
               final parentPhone = (data['parentPhone'] ?? '').toString();
-              final childName = nameAr.isNotEmpty ? nameAr : nameEn;
-
-              const noteText =
-                  "يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة : 05:00 صباحاً\nلضمان وصول الباص ووصول الباص في الموعد الملتزم به";
 
               return Column(
                 children: [
                   _TopHeader(
                     title: "إدارة الابن",
                     onBack: () => Navigator.pop(context),
-                    onLang: () {},
                   ),
                   Expanded(
                     child: SingleChildScrollView(
@@ -81,18 +145,42 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                 Row(
                                   children: [
                                     const Spacer(),
-                                    IconButton(
-                                      onPressed: () {},
-                                      icon: const Icon(Icons.edit, color: Color(0xFF98A2B3)),
+                                    GestureDetector(
+                                      onTap: () => _handleDeleteAccount(
+                                        requestId,
+                                        nameAr,
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.red.withOpacity(0.5),
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          color: Colors.red.withOpacity(0.05),
+                                        ),
+                                        child: const Text(
+                                          "حذف الحساب",
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
-                                _UserAvatarFromFirestore(parentPhone: parentPhone),
+                                _UserAvatar(parentPhone: parentPhone),
                                 const SizedBox(height: 12),
                                 Text(
-                                  childName.isEmpty ? "طالب" : childName,
-                                  textAlign: TextAlign.center,
+                                  nameAr,
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w900,
@@ -101,21 +189,21 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 const Text(
-                                  noteText,
+                                  "يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة : 05:00 صباحاً\nلضمان وصول الباص في الموعد الملتزم به",
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    fontSize: 12.5,
+                                    fontSize: 12,
                                     height: 1.35,
                                     color: Color(0xFFD64545),
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 const SizedBox(height: 16),
+                                // --- شريط الحضور المعدل للشهر العربي ---
                                 FigmaAttendanceBar(
                                   attendance: attendance,
-                                  onChanged: (val) {
-                                    setState(() => attendance = val);
-                                  },
+                                  onChanged: (val) =>
+                                      setState(() => attendance = val),
                                 ),
                                 const SizedBox(height: 20),
                                 const Align(
@@ -146,12 +234,6 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                       dotColor: Color(0xFF7CB342),
                                       icon: Icons.flag,
                                     ),
-                                    _TimelineRowData(
-                                      title: "تم صعود الحافلة بنجاح من المدرسة",
-                                      time: "",
-                                      dotColor: Color(0xFF5C6BC0),
-                                      icon: Icons.place,
-                                    ),
                                   ],
                                 ),
                               ],
@@ -166,19 +248,19 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
             },
           ),
         ),
-        // ✅ Added the Standardized Bottom Bar here
         bottomNavigationBar: _buildBottomNav(context),
       ),
     );
   }
 
-  // ✅ New Standardized Bottom Navigation with Titles
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
         elevation: 0,
@@ -186,57 +268,84 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-        currentIndex: 0, 
-        onTap: (index) {
-          if (index == 0) Navigator.pushReplacementNamed(context, '/parent_home');
-          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
-        },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded, size: 28),
+            label: 'الرئيسية',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded, size: 28),
+            label: 'الملف الشخصي',
+          ),
         ],
       ),
     );
   }
 }
 
-/* -------------------- Sub-Widgets remain as they were -------------------- */
-
+// --- الويجيت المعدل لعرض الشهر بالعربي (حل المشكلة 1) ---
 class FigmaAttendanceBar extends StatelessWidget {
   final String attendance;
   final ValueChanged<String> onChanged;
-  const FigmaAttendanceBar({super.key, required this.attendance, required this.onChanged});
-
-  Map<String, String> get _getHijriDetails {
-    var today = HijriCalendar.now();
-    List<String> monthsAr = ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"];
-    return {
-      'dayNumber': today.hDay.toString(),
-      'monthName': monthsAr[today.hMonth - 1],
-      'dayName': DateFormat('EEEE', 'ar').format(DateTime.now()),
-    };
-  }
+  const FigmaAttendanceBar({
+    super.key,
+    required this.attendance,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final dateInfo = _getHijriDetails;
+    var today = HijriCalendar.now();
+    // مصفوفة الأشهر العربية يدوياً لضمان عدم ظهورها بالإنجليزية
+    const List<String> monthsAr = [
+      "محرم",
+      "صفر",
+      "ربيع الأول",
+      "ربيع الآخر",
+      "جمادى الأولى",
+      "جمادى الآخرة",
+      "رجب",
+      "شعبان",
+      "رمضان",
+      "شوال",
+      "ذو القعدة",
+      "ذو الحجة",
+    ];
+
+    String dayName = DateFormat('EEEE', 'ar').format(DateTime.now());
+    String hijriMonth = monthsAr[today.hMonth - 1];
+
     return Container(
       height: 85,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: const Color(0xFF8A95A5), borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF8A95A5),
+        borderRadius: BorderRadius.circular(15),
+      ),
       child: Row(
-        textDirection: TextDirection.rtl, 
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(dateInfo['dayNumber']!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0B1220), height: 1.0)),
-              const SizedBox(height: 4),
-              Text("${dateInfo['monthName']} ${dateInfo['dayName']}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0B1220))),
+              Text(
+                today.hDay.toString(),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0B1220),
+                ),
+              ),
+              Text(
+                "$hijriMonth - $dayName",
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0B1220),
+                ),
+              ),
             ],
           ),
           _RightPillDropdown(value: attendance, onChanged: onChanged),
@@ -255,17 +364,29 @@ class _RightPillDropdown extends StatelessWidget {
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: const Color(0xFFC78484), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC78484),
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 20, color: Color(0xFF0B1220)),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            size: 20,
+            color: Color(0xFF0B1220),
+          ),
           items: const [
             DropdownMenuItem(value: "غائب", child: Text("غائب")),
             DropdownMenuItem(value: "حاضر", child: Text("حاضر")),
           ],
-          onChanged: (v) { if (v != null) onChanged(v); },
-          style: const TextStyle(color: Color(0xFF0B1220), fontWeight: FontWeight.bold),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+          style: const TextStyle(
+            color: Color(0xFF0B1220),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -275,56 +396,69 @@ class _RightPillDropdown extends StatelessWidget {
 class _TopHeader extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
-  final VoidCallback onLang;
-  const _TopHeader({required this.title, required this.onBack, required this.onLang});
+  const _TopHeader({required this.title, required this.onBack});
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 92,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
+      color: const Color(0xFF0D1B36),
       child: Row(
         children: [
-          IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white)),
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Icon(Icons.language, color: Colors.white),
+          ),
           const Spacer(),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18.5, fontWeight: FontWeight.w900)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           const Spacer(),
-          IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_forward_ios, color: Colors.white)),
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+          ),
         ],
       ),
     );
   }
 }
 
-class _UserAvatarFromFirestore extends StatelessWidget {
+class _UserAvatar extends StatelessWidget {
   final String parentPhone;
-  const _UserAvatarFromFirestore({required this.parentPhone});
+  const _UserAvatar({required this.parentPhone});
   @override
   Widget build(BuildContext context) {
-    if (parentPhone.trim().isEmpty) return _fallbackAvatar();
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(parentPhone).snapshots(),
-      builder: (context, snap) {
-        String photoUrl = "";
-        if (snap.hasData && snap.data!.exists) {
-          final u = snap.data!.data() as Map<String, dynamic>;
-          photoUrl = (u['photoUrl'] ?? '').toString();
-        }
-        if (photoUrl.trim().isEmpty) return _fallbackAvatar();
-        return Container(width: 120, height: 120, decoration: const BoxDecoration(color: Color(0xFFE6E6E6), shape: BoxShape.circle), clipBehavior: Clip.antiAlias, child: Image.network(photoUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => _fallbackAvatar()));
-      },
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: const BoxDecoration(
+        color: Color(0xFFE6E6E6),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.person, size: 50, color: Colors.white),
     );
   }
-  Widget _fallbackAvatar() => Container(width: 120, height: 120, decoration: const BoxDecoration(color: Color(0xFFE6E6E6), shape: BoxShape.circle), alignment: Alignment.center, child: const Icon(Icons.person, size: 60, color: Colors.white));
 }
 
 class _MapPreview extends StatelessWidget {
   const _MapPreview();
   @override
   Widget build(BuildContext context) {
-    const url = "https://maps.gstatic.com/tactile/basepage/pegman_sherlock.png";
-    return Container(height: 150, width: double.infinity, decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: const Color(0xFFEDEFF2)), clipBehavior: Clip.antiAlias, child: Image.network(url, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFFEDEFF2), alignment: Alignment.center, child: const Text("الخريطة غير متاحة حالياً", style: TextStyle(color: Color(0xFF475467), fontWeight: FontWeight.w800)))));
+    return Container(
+      height: 150,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.grey.shade300,
+      ),
+      child: const Center(child: Text("خريطة تتبع الباص")),
+    );
   }
 }
 
@@ -332,7 +466,12 @@ class _TimelineRowData {
   final String title, time;
   final Color dotColor;
   final IconData icon;
-  const _TimelineRowData({required this.title, required this.time, required this.dotColor, required this.icon});
+  const _TimelineRowData({
+    required this.title,
+    required this.time,
+    required this.dotColor,
+    required this.icon,
+  });
 }
 
 class _TimelineCard extends StatelessWidget {
@@ -340,30 +479,22 @@ class _TimelineCard extends StatelessWidget {
   const _TimelineCard({required this.items});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Column(
-        children: List.generate(items.length, (i) {
-          final item = items[i];
-          final isLast = i == items.length - 1;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(children: [
-                Container(width: 22, height: 22, decoration: BoxDecoration(color: item.dotColor.withOpacity(0.15), shape: BoxShape.circle), child: Icon(item.icon, size: 14, color: item.dotColor)),
-                if (!isLast) Container(width: 2, height: 34, margin: const EdgeInsets.only(top: 6), color: const Color(0xFFE5E7EB)),
-              ]),
-              const SizedBox(width: 12),
-              Expanded(child: Padding(padding: const EdgeInsets.only(top: 2), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF344054), fontSize: 13.5)),
-                if (item.time.trim().isNotEmpty) ...[const SizedBox(height: 4), Text(item.time, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF98A2B3), fontSize: 12))],
-                const SizedBox(height: 12),
-              ]))),
-            ],
-          );
-        }),
-      ),
+    return Column(
+      children: items
+          .map(
+            (item) => ListTile(
+              leading: Icon(item.icon, color: item.dotColor),
+              title: Text(
+                item.title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(item.time, style: const TextStyle(fontSize: 11)),
+            ),
+          )
+          .toList(),
     );
   }
 }
