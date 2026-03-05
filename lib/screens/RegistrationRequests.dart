@@ -120,27 +120,54 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   // --- Logic Handlers ---
 
   Future<void> _handleAccept(String requestId, Map<String, dynamic> data) async {
+    // Check if location data exists before proceeding
+    if (data['lat'] == null || data['lng'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("خطأ: لم يتم تحديد موقع الطالب من قبل ولي الأمر"))
+      );
+      return;
+    }
+
     try {
+      // Generate a semi-random unique ID for the new student
       String newStudentId = "STU${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
 
+      // Transfer data to 'Students' collection for Clustering Algorithm
       await FirebaseFirestore.instance.collection('Students').doc(newStudentId).set({
-        'BusID': "101", 
-        'Latitude': 21.664476, 
-        'Longitude': 39.128645, 
-        'SchoolID': data['schoolId'], 
         'StudentID': newStudentId,
         'StudentName': data['name_en'],
         'StudentName_ar': data['name_ar'],
+        'IDNumber': data['IDNumber'],
         'parentPhone': data['parentPhone'],
+        'secondPhone': data['secondPhone'] ?? '',
+        'SchoolID': data['schoolId'], 
+        'SchoolName': data['SchoolName'],
         'Grade': data['Grade'],
+        // REAL DATA CAPTURED FROM MAP PICKER:
+        'Latitude': data['lat'], 
+        'Longitude': data['lng'], 
+        'BusID': "Unassigned", // Placeholder until clustering runs
+        'status': 'active',
+        'joinedAt': FieldValue.serverTimestamp(),
       });
 
+      // Update the original request status
       await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
         'status': 'approved',
       }); 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم قبول الطالب وإضافته للنظام")));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("تم قبول الطالب وإضافته للنظام بنجاح"))
+        );
+      }
     } catch (e) {
       debugPrint("Accept Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("حدث خطأ أثناء القبول: $e"))
+        );
+      }
     }
   }
 
@@ -196,6 +223,8 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool hasLocation = data['lat'] != null && data['lng'] != null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -217,9 +246,33 @@ class _RequestCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    data['name_ar'] ?? '',
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0D1B36)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['name_ar'] ?? '',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0D1B36)),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on, 
+                            size: 14, 
+                            color: hasLocation ? Colors.green : Colors.red
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            hasLocation ? "الموقع محدد ✅" : "الموقع غير محدد ❌",
+                            style: TextStyle(
+                              fontSize: 12, 
+                              color: hasLocation ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'map_picker_screen.dart'; // Ensure this file is created
+import 'map_picker_screen.dart'; 
 
 class RegisterStudentScreen extends StatefulWidget {
   const RegisterStudentScreen({super.key});
@@ -60,24 +60,20 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     }
   }
 
-  // --- Step 1: Warning & Map Logic ---
+  // --- Location Logic ---
   Future<void> _handleLocationSelection() async {
-    // Show importance warning
     bool proceed = await _showLocationWarning();
-    
     if (proceed) {
       final LatLng? result = await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const MapPickerScreen()),
       );
-
       if (result != null) {
         _validateAndSaveLocation(result);
       }
     }
   }
 
-  // --- Step 2: Proximity Validation ---
   Future<void> _validateAndSaveLocation(LatLng pickedLocation) async {
     Position currentPos = await Geolocator.getCurrentPosition();
     double distance = Geolocator.distanceBetween(
@@ -85,7 +81,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
       pickedLocation.latitude, pickedLocation.longitude
     );
 
-    // If the pin is more than 150 meters from their current GPS spot
     if (distance > 150) {
       _showSimpleAlert("تنبيه: الموقع المختار بعيد عن موقعك الحالي. يرجى التأكد من دقة اختيار منزل الطالب.");
     }
@@ -122,43 +117,68 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _SectionLabel(label: "بيانات الطالب الأساسية"),
-                                _buildSmartField("اسم الطالب ثلاثي (بالعربي)", _nameAr, Icons.person_outline),
-                                _buildSmartField("Student Triple Name (English)", _nameEn, Icons.person_outline, isEnglish: true),
-                                _buildSmartField("رقم الهوية", _idNumber, Icons.badge_outlined, isNumber: true),
                                 
-                                // --- Location Picker UI ---
-                                _SectionLabel(label: "موقع المنزل (مهم جداً للحافلة)"),
-                                InkWell(
-                                  onTap: _handleLocationSelection,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[100],
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: _selectedLat == null ? Colors.red.withOpacity(0.3) : Colors.transparent),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.map_rounded, color: _kAccent),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(_locationStatus, 
-                                            style: TextStyle(
-                                              color: _selectedLat == null ? Colors.grey[600] : _kDarkBlue,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                            )),
-                                        ),
-                                        if (_selectedLat != null) const Icon(Icons.check_circle, color: Colors.green),
-                                      ],
-                                    ),
-                                  ),
+                                // Arabic Name: Only Arabic characters + Spaces
+                                _buildSmartField(
+                                  "اسم الطالب ثلاثي (بالعربي)", _nameAr, Icons.person_outline,
+                                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]'))],
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "الاسم مطلوب";
+                                    if (v.trim().split(' ').length < 3) return "يجب إدخال الاسم ثلاثي";
+                                    return null;
+                                  },
                                 ),
+
+                                // English Name: Only English letters + Spaces
+                                _buildSmartField(
+                                  "Student Triple Name (English)", _nameEn, Icons.person_outline,
+                                  isEnglish: true,
+                                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]'))],
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "Name is required";
+                                    if (v.trim().split(' ').length < 3) return "Please enter triple name";
+                                    return null;
+                                  },
+                                ),
+
+                                // ID Number: Numbers only, Max 10 digits
+                                _buildSmartField(
+                                  "رقم الهوية", _idNumber, Icons.badge_outlined,
+                                  isNumber: true,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(10),
+                                  ],
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return "رقم الهوية مطلوب";
+                                    if (v.length != 10) return "يجب أن يتكون من 10 أرقام";
+                                    return null;
+                                  },
+                                ),
+                                
+                                _SectionLabel(label: "موقع المنزل (مهم جداً للحافلة)"),
+                                _buildLocationPicker(),
                                 const SizedBox(height: 20),
 
                                 _SectionLabel(label: "بيانات التواصل"),
                                 _buildSmartField("رقم الجوال المسجل", _parentPhone, Icons.verified_user_outlined, isReadOnly: true),
-                                _buildSmartField("رقم الجوال الإضافي (اختياري)", _secondPhone, Icons.phone_enabled_outlined, isNumber: true),
+
+                                // Secondary Phone: Numbers only, Max 10 digits, Start with 05
+                                _buildSmartField(
+                                  "رقم الجوال الإضافي", _secondPhone, Icons.phone_enabled_outlined,
+                                  isNumber: true,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(10),
+                                  ],
+                                  validator: (v) {
+                                    if (v != null && v.isNotEmpty) {
+                                      if (v.length != 10) return "يجب أن يكون 10 أرقام";
+                                      if (!v.startsWith('05')) return "يجب أن يبدأ بـ 05";
+                                    }
+                                    return null;
+                                  },
+                                ),
                                 
                                 _SectionLabel(label: "المعلومات الدراسية"),
                                 _buildSchoolDropdown(),
@@ -182,7 +202,69 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     );
   }
 
-  // --- Submission Logic ---
+  // --- UI Components ---
+
+  Widget _buildLocationPicker() {
+    return InkWell(
+      onTap: _handleLocationSelection,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _selectedLat == null ? Colors.red.withOpacity(0.3) : Colors.transparent),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.map_rounded, color: _kAccent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(_locationStatus, 
+                style: TextStyle(
+                  color: _selectedLat == null ? Colors.grey[600] : _kDarkBlue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                )),
+            ),
+            if (_selectedLat != null) const Icon(Icons.check_circle, color: Colors.green),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmartField(String label, TextEditingController controller, IconData icon, {
+    bool isNumber = false, 
+    bool isEnglish = false, 
+    bool isReadOnly = false,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: _kDarkBlue, fontSize: 13)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          readOnly: isReadOnly,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          textAlign: isEnglish ? TextAlign.left : TextAlign.right,
+          inputFormatters: inputFormatters,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isReadOnly ? Colors.grey : _kDarkBlue),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: isReadOnly ? Colors.grey[50] : Colors.grey[100],
+            prefixIcon: Icon(icon, color: _kAccent, size: 20),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+          ),
+          validator: validator ?? (v) => (v == null || v.isEmpty) ? "هذا الحقل مطلوب" : null,
+        ),
+        const SizedBox(height: 14),
+      ],
+    );
+  }
+
   void _submitData() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedLat == null) {
@@ -203,7 +285,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
           "Grade": selectedGrade,
           "status": "pending",
           "createdAt": FieldValue.serverTimestamp(),
-          // Coordinates for K-Means Clustering
           "lat": _selectedLat,
           "lng": _selectedLng,
         });
@@ -220,20 +301,14 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     }
   }
 
-  // --- UI Helpers ---
-
+  // Helper Methods for UI (Dropdowns, Alerts, Headers)
   Future<bool> _showLocationWarning() async {
     return await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("تنبيه دقة الموقع", textAlign: TextAlign.right),
-        content: const Text(
-          "من فضلك، تأكد من أنك في منزل الطالب الآن. دقة الموقع تضمن تخصيص الحافلة الصحيحة لابنك.",
-          textAlign: TextAlign.right,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("موافق، سأقوم بالتحديد")),
-        ],
+        content: const Text("من فضلك، تأكد من أنك في منزل الطالب الآن لضمان دقة التوزيع.", textAlign: TextAlign.right),
+        actions: [TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("موافق"))],
       ),
     ) ?? false;
   }
@@ -245,31 +320,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
         content: Text(msg, textAlign: TextAlign.right),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("حسناً"))],
       ),
-    );
-  }
-
-  Widget _buildSmartField(String label, TextEditingController controller, IconData icon, {bool isNumber = false, bool isEnglish = false, bool isReadOnly = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: _kDarkBlue, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          readOnly: isReadOnly,
-          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-          textAlign: isEnglish ? TextAlign.left : TextAlign.right,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isReadOnly ? Colors.grey : _kDarkBlue),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: isReadOnly ? Colors.grey[50] : Colors.grey[100],
-            prefixIcon: Icon(icon, color: _kAccent, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-          ),
-          validator: (v) => (v == null || v.isEmpty) ? "هذا الحقل مطلوب" : null,
-        ),
-        const SizedBox(height: 14),
-      ],
     );
   }
 
@@ -349,7 +399,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   }
 }
 
-// Reuse your _TopHeader and _MainCardContainer from the original snippet
 class _TopHeader extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
