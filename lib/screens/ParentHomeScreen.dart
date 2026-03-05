@@ -73,14 +73,24 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                           const SizedBox(height: 25),
 
                           // --- Management Section Header ---
+                          // --- Management Section Header ---
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const _SectionHeader(title: 'إدارة الأبناء'),
-                              const Icon(
-                                Icons.add_circle,
-                                color: Color(0xFF6A994E),
-                                size: 30,
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.add_circle,
+                                  color: Color(0xFF6A994E),
+                                  size: 30,
+                                ),
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const RegisterStudentScreen(),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -258,10 +268,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   Widget _buildStatusBadge(String status) {
     Color color = status == 'approved'
         ? Colors.green
-        : (status == 'rejected' ? Colors.red : Colors.orange);
+        : (status == 'refused' ? Colors.red : Colors.orange);
     String text = status == 'approved'
         ? "مسجل"
-        : (status == 'rejected' ? "مرفوض" : "قيد المعالجة");
+        : (status == 'refused' ? "مرفوض" : "قيد المعالجة");
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -298,7 +308,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           Navigator.pushNamed(
             context,
             '/manage_child',
-            arguments: {'StudentID': requestId},
+            arguments: {'requestId': requestId},
           );
         },
         child: Padding(
