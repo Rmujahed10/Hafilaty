@@ -15,7 +15,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  firebase_auth: ^4.19.2
+  google_maps_flutter: ^2.11.0  # For the interactive map
+  geolocator: ^12.0.0          # To get the user's current GPS position
+  firebase_auth: ^4.16.0 
   firebase_core: ^2.25.0
   cloud_firestore: ^4.15.0
   firebase_database: ^10.5.7
@@ -24,6 +26,7 @@ dependencies:
   translator: ^0.1.7
   intl: ^0.20.2
   hijri: ^3.0.0
+  
   
 # =================================================================
 # 2. DEV DEPENDENCIES (Packages used for development/tools)
