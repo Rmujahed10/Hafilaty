@@ -18,14 +18,110 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
   String attendance = "غائب";
 
+  /// ✅ دالة الحذف الشاملة (StudentRequests + Students)
+  Future<void> _handleDeleteAccount(String requestId, String studentName) async {
+    final confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              title: const Text("تأكيد الحذف النهائي"),
+              content: Text(
+                "هل أنت متأكد من حذف حساب الطالب ($studentName)؟ سيتم مسح البيانات من كافة السجلات.",
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text("إلغاء"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(
+                    "حذف الآن",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+
+    if (!confirm) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      // 1) حذف طلب الطالب
+      final reqRef = db.collection('StudentRequests').doc(requestId);
+      batch.delete(reqRef);
+
+      // 2) حذف الطالب من Students
+      // (A) محاولة: docId = requestId
+      final studentDirectRef = db.collection('Students').doc(requestId);
+      final directSnap = await studentDirectRef.get();
+      if (directSnap.exists) {
+        batch.delete(studentDirectRef);
+      } else {
+        // (B) أو البحث بحقل requestId داخل Students
+        final q = await db
+            .collection('Students')
+            .where('requestId', isEqualTo: requestId)
+            .get();
+
+        for (final d in q.docs) {
+          batch.delete(d.reference);
+        }
+
+        // (C) خيار احتياطي: البحث بالاسم (غير مفضل لكن خليته احتياط)
+        if (q.docs.isEmpty && studentName.trim().isNotEmpty) {
+          final byName = await db
+              .collection('Students')
+              .where('StudentName_ar', isEqualTo: studentName.trim())
+              .get();
+          for (final d in byName.docs) {
+            batch.delete(d.reference);
+          }
+        }
+      }
+
+      await batch.commit();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("تم حذف كافة بيانات الطالب بنجاح")),
+      );
+
+      // ✅ رجوع للوراء بعد الحذف (عشان Stream ما يعلق)
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Error during deletion: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("صار خطأ أثناء الحذف، حاول مرة ثانية")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    if (args == null)
-      return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
 
-    final requestId = args['requestId'] as String;
+    if (args == null) {
+      return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
+    }
+
+    final requestId = (args['requestId'] ?? '').toString();
+    if (requestId.trim().isEmpty) {
+      return const Scaffold(body: Center(child: Text("requestId غير موجود")));
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -38,8 +134,14 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                 .doc(requestId)
                 .snapshots(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
+              // ✅ تحميل
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
+              }
+
+              // ✅ لو انحذف المستند
+              if (!snapshot.hasData || !snapshot.data!.exists) {
+                return const Center(child: Text("تم حذف البيانات بنجاح"));
               }
 
               final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
@@ -47,6 +149,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
               final nameEn = (data['name_en'] ?? '').toString();
               final parentPhone = (data['parentPhone'] ?? '').toString();
               final childName = nameAr.isNotEmpty ? nameAr : nameEn;
+              final displayName = childName.isEmpty ? "طالب" : childName;
 
               const noteText =
                   "يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة : 05:00 صباحاً\nلضمان وصول الباص ووصول الباص في الموعد الملتزم به";
@@ -83,6 +186,39 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                 Row(
                                   children: [
                                     const Spacer(),
+
+                                    // ✅ زر حذف الحساب
+                                    GestureDetector(
+                                      onTap: () => _handleDeleteAccount(
+                                        requestId,
+                                        displayName,
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.red.withOpacity(0.5),
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          color: Colors.red.withOpacity(0.05),
+                                        ),
+                                        child: const Text(
+                                          "حذف الحساب",
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+
                                     IconButton(
                                       onPressed: () {},
                                       icon: const Icon(
@@ -92,13 +228,17 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                     ),
                                   ],
                                 ),
+
                                 const SizedBox(height: 2),
-                                _UserAvatarFromFirestore(
-                                  parentPhone: parentPhone,
-                                ),
+
+                                // ✅ صورة من users collection
+                                _UserAvatarFromFirestore(parentPhone: parentPhone),
+
                                 const SizedBox(height: 12),
+
+                                // ✅ عرض الاسم
                                 Text(
-                                  childName.isEmpty ? "طالب" : childName,
+                                  displayName,
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 22,
@@ -106,7 +246,9 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                     color: Color(0xFF101828),
                                   ),
                                 ),
+
                                 const SizedBox(height: 6),
+
                                 const Text(
                                   noteText,
                                   textAlign: TextAlign.center,
@@ -117,71 +259,60 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
+
                                 const SizedBox(height: 16),
+
                                 FigmaAttendanceBar(
                                   attendance: attendance,
                                   onChanged: (val) async {
-                                    // 1. الحصول على التاريخ الحالي بصيغة YYYY-MM-DD
-                                    String todayDate = DateFormat(
-                                      'yyyy-MM-dd',
-                                    ).format(DateTime.now());
+                                    final todayDate = DateFormat('yyyy-MM-dd')
+                                        .format(DateTime.now());
 
                                     try {
-                                      // 2. تحديث الحالة في قاعدة البيانات (في مجموعة الحضور اليومي)
                                       await FirebaseFirestore.instance
-                                          .collection(
-                                            'Attendance',
-                                          ) // المجموعة الرئيسية
-                                          .doc(todayDate) // مستند لليوم الحالي
-                                          .collection(
-                                            'Students',
-                                          ) // مجموعة فرعية للطلاب
-                                          .doc(
-                                            requestId,
-                                          ) // معرف الطالب (requestId)
+                                          .collection('Attendance')
+                                          .doc(todayDate)
+                                          .collection('Students')
+                                          .doc(requestId)
                                           .set({
-                                            'name': childName,
-                                            'status': val,
-                                            'timestamp':
-                                                FieldValue.serverTimestamp(),
-                                            'parentPhone': parentPhone,
-                                          }, SetOptions(merge: true));
+                                        'name': displayName,
+                                        'status': val,
+                                        'timestamp':
+                                            FieldValue.serverTimestamp(),
+                                        'parentPhone': parentPhone,
+                                      }, SetOptions(merge: true));
 
-                                      // 3. تحديث الحالة في واجهة التطبيق
+                                      if (!mounted) return;
                                       setState(() => attendance = val);
 
-                                      // 4. إظهار رسالة نجاح للأب
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              val == "حاضر"
-                                                  ? "تم تسجيل حضور $childName بنجاح"
-                                                  : "تم تسجيل غياب $childName",
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontFamily: 'Tajawal',
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            backgroundColor: val == "حاضر"
-                                                ? Colors.green
-                                                : Colors.redAccent,
-                                            behavior: SnackBarBehavior.floating,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            val == "حاضر"
+                                                ? "تم تسجيل حضور $displayName بنجاح"
+                                                : "تم تسجيل غياب $displayName",
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontFamily: 'Tajawal',
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        );
-                                      }
+                                          backgroundColor: val == "حاضر"
+                                              ? Colors.green
+                                              : Colors.redAccent,
+                                          behavior:
+                                              SnackBarBehavior.floating,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      );
                                     } catch (e) {
-                                      // في حال حدث خطأ
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
                                         const SnackBar(
                                           content: Text(
                                             "عذراً، حدث خطأ أثناء التحديث",
@@ -191,7 +322,9 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                     }
                                   },
                                 ),
+
                                 const SizedBox(height: 20),
+
                                 const Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
@@ -203,9 +336,11 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                     ),
                                   ),
                                 ),
+
                                 const SizedBox(height: 10),
                                 const _MapPreview(),
                                 const SizedBox(height: 12),
+
                                 const _TimelineCard(
                                   items: [
                                     _TimelineRowData(
@@ -240,13 +375,11 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
             },
           ),
         ),
-        // ✅ Added the Standardized Bottom Bar here
         bottomNavigationBar: _buildBottomNav(context),
       ),
     );
   }
 
-  // ✅ New Standardized Bottom Navigation with Titles
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -272,9 +405,11 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
         ),
         currentIndex: 0,
         onTap: (index) {
-          if (index == 0)
+          if (index == 0) {
             Navigator.pushReplacementNamed(context, '/parent_home');
-          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+          } else if (index == 1) {
+            Navigator.pushReplacementNamed(context, '/role_home');
+          }
         },
         items: const [
           BottomNavigationBarItem(
@@ -374,6 +509,7 @@ class _RightPillDropdown extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
   const _RightPillDropdown({required this.value, required this.onChanged});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -417,6 +553,7 @@ class _TopHeader extends StatelessWidget {
     required this.onBack,
     required this.onLang,
   });
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -453,9 +590,11 @@ class _TopHeader extends StatelessWidget {
 class _UserAvatarFromFirestore extends StatelessWidget {
   final String parentPhone;
   const _UserAvatarFromFirestore({required this.parentPhone});
+
   @override
   Widget build(BuildContext context) {
     if (parentPhone.trim().isEmpty) return _fallbackAvatar();
+
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -468,6 +607,7 @@ class _UserAvatarFromFirestore extends StatelessWidget {
           photoUrl = (u['photoUrl'] ?? '').toString();
         }
         if (photoUrl.trim().isEmpty) return _fallbackAvatar();
+
         return Container(
           width: 120,
           height: 120,
@@ -487,19 +627,20 @@ class _UserAvatarFromFirestore extends StatelessWidget {
   }
 
   Widget _fallbackAvatar() => Container(
-    width: 120,
-    height: 120,
-    decoration: const BoxDecoration(
-      color: Color(0xFFE6E6E6),
-      shape: BoxShape.circle,
-    ),
-    alignment: Alignment.center,
-    child: const Icon(Icons.person, size: 60, color: Colors.white),
-  );
+        width: 120,
+        height: 120,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE6E6E6),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.person, size: 60, color: Colors.white),
+      );
 }
 
 class _MapPreview extends StatelessWidget {
   const _MapPreview();
+
   @override
   Widget build(BuildContext context) {
     const url = "https://maps.gstatic.com/tactile/basepage/pegman_sherlock.png";
@@ -545,6 +686,7 @@ class _TimelineRowData {
 class _TimelineCard extends StatelessWidget {
   final List<_TimelineRowData> items;
   const _TimelineCard({required this.items});
+
   @override
   Widget build(BuildContext context) {
     return Container(
