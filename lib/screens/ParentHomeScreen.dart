@@ -73,7 +73,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                           const SizedBox(height: 25),
 
                           // --- Management Section Header ---
-                          // --- Management Section Header ---
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -268,10 +267,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   Widget _buildStatusBadge(String status) {
     Color color = status == 'approved'
         ? Colors.green
-        : (status == 'refused' ? Colors.red : Colors.orange);
+        : (status == 'rejected' ? Colors.red : Colors.orange);
     String text = status == 'approved'
         ? "مسجل"
-        : (status == 'refused' ? "مرفوض" : "قيد المعالجة");
+        : (status == 'rejected' ? "مرفوض" : "قيد المعالجة");
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -295,75 +294,213 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     String requestId,
     String name,
   ) {
+    // الحالة الافتراضية - يفضل جلبها من قاعدة البيانات لاحقاً
+    String currentStatus = 'غائب';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFD4E09B).withOpacity(0.4),
         borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: InkWell(
-        // جعل المستطيل كاملاً قابلاً للضغط
         borderRadius: BorderRadius.circular(15),
+        // النقر على البطاقة بالكامل ينقلك لصفحة إدارة الطفل
         onTap: () {
           Navigator.pushNamed(
             context,
             '/manage_child',
-            arguments: {'requestId': requestId},
+            arguments: {'StudentID': requestId},
           );
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person, size: 18, color: Colors.grey),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: _kHeaderBlue,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+              const CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 18, color: Colors.grey),
               ),
-              Row(
-                // إضافة السهم بجانب زر غائب
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      // يمكنك وضع منطق الغياب هنا أو تركه فارغاً إذا كنت تريد الضغط للبطاقة ككل
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0D1B36),
+                        fontSize: 14,
                       ),
                     ),
-                    child: const Text(
-                      'غائب',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                    // نص بديل للسهم يوضح إمكانية الدخول للتفاصيل
+                    const Text(
+                      "اضغط لعرض الملف الشخصي",
+                      style: TextStyle(fontSize: 10, color: Colors.black45),
+                    ),
+                  ],
+                ),
+              ),
+              // الجزء الخاص بزر الحالة والوقت
+              StatefulBuilder(
+                builder: (context, setState) {
+                  bool isAbsent = currentStatus == 'غائب';
+
+                  // حسابات الوقت
+                  DateTime now = DateTime.now();
+                  int currentHour = now.hour;
+                  bool isWithinAllowedTime =
+                      (currentHour >= 19 || currentHour < 5);
+                  bool isTimeExpired = !isWithinAllowedTime;
+
+                  return Container(
+                    height: 35,
+                    width: 95,
+                    decoration: BoxDecoration(
+                      color: isTimeExpired
+                          ? Colors.grey.shade400
+                          : (isAbsent ? Colors.redAccent : Colors.green),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: currentStatus,
+                        isExpanded: true,
+                        dropdownColor: Colors.white,
+                        icon: const Padding(
+                          padding: EdgeInsets.only(left: 5),
+                          child: Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        onChanged: (String? newValue) async {
+                          // تنبيه إذا كان الوقت غير مسموح
+                          if (isTimeExpired) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'عذراً، التعديل متاح من 7:00 م حتى 5:00 ص',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                            return;
+                          }
+
+                          if (newValue != null) {
+                            setState(() => currentStatus = newValue);
+
+                            try {
+                              // تحديد التاريخ المستهدف (اليوم أو غداً بناءً على الساعة)
+                              DateTime targetDate = now;
+                              if (currentHour >= 19) {
+                                targetDate = now.add(const Duration(days: 1));
+                              }
+                              String formattedDate =
+                                  "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
+
+                              // 1. تحديث الحالة في كولكشن الطلاب
+                              await FirebaseFirestore.instance
+                                  .collection('Students')
+                                  .doc(requestId)
+                                  .update({'attendanceStatus': newValue});
+
+                              // 2. تحديث كولكشن الحضور للسائق
+                              var attendanceDocRef = FirebaseFirestore.instance
+                                  .collection('Attendance')
+                                  .doc(formattedDate)
+                                  .collection('PresentStudents')
+                                  .doc(requestId);
+
+                              if (newValue == 'حاضر') {
+                                DocumentSnapshot studentDoc =
+                                    await FirebaseFirestore.instance
+                                        .collection('Students')
+                                        .doc(requestId)
+                                        .get();
+
+                                if (studentDoc.exists) {
+                                  Map<String, dynamic> data =
+                                      studentDoc.data() as Map<String, dynamic>;
+                                  data['attendanceStatus'] = 'حاضر';
+                                  data['updatedAt'] =
+                                      FieldValue.serverTimestamp();
+                                  await attendanceDocRef.set(data);
+                                }
+                              } else {
+                                await attendanceDocRef.delete();
+                              }
+
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'تم التحديث بنجاح لتاريخ $formattedDate',
+                                    ),
+                                    backgroundColor: newValue == 'حاضر'
+                                        ? Colors.green
+                                        : Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              debugPrint("Error: $e");
+                            }
+                          }
+                        },
+                        items: <String>['حاضر', 'غائب']
+                            .map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Center(
+                                  child: Text(
+                                    value,
+                                    style: TextStyle(
+                                      color: isTimeExpired
+                                          ? Colors.grey
+                                          : (value == 'غائب'
+                                                ? Colors.redAccent
+                                                : Colors.green),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            })
+                            .toList(),
+                        selectedItemBuilder: (BuildContext context) {
+                          return <String>['حاضر', 'غائب'].map((String value) {
+                            return Center(
+                              child: Text(
+                                value,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            );
+                          }).toList();
+                        },
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey,
-                    size: 20,
-                  ), // السهم الرمادي
-                ],
+                  );
+                },
               ),
             ],
           ),
