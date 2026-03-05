@@ -24,7 +24,6 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Main layout is ALWAYS RTL to keep UI elements (Back button, Nav) fixed
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -34,15 +33,28 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
             stream: _ref.snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator(color: _kHeaderBlue));
+                return const Center(
+                  child: CircularProgressIndicator(color: _kHeaderBlue),
+                );
+              }
+
+              if (!snapshot.data!.exists) {
+                return const Center(child: Text("تم حذف البيانات بنجاح"));
               }
 
               final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-              
-              // Select name based on language toggle
-              final name = isArabic
-                  ? (data['StudentName_ar'] ?? data['StudentNameAr'] ?? 'اسم غير معروف')
-                  : (data['StudentName'] ?? data['StudentNameEn'] ?? 'Unknown Name');
+
+              final nameAr =
+                  (data['StudentName_ar'] ??
+                          data['StudentNameAr'] ??
+                          'اسم غير معروف')
+                      .toString();
+              final nameEn =
+                  (data['StudentName'] ??
+                          data['StudentNameEn'] ??
+                          'Unknown Name')
+                      .toString();
+              final displayName = isArabic ? nameAr : nameEn;
 
               return Column(
                 children: [
@@ -59,46 +71,79 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
                           const SizedBox(height: 10),
                           _MainCardContainer(
                             children: [
-                              // ✅ Localized Directionality: Only flips the data inside the card
                               Directionality(
-                                textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                                textDirection: isArabic
+                                    ? TextDirection.rtl
+                                    : TextDirection.ltr,
                                 child: Column(
                                   children: [
-                                    _ProfileSection(name: name.toString()),
+                                    _ProfileSection(name: displayName),
                                     const SizedBox(height: 24),
-                                    
-                                    _SectionLabel(label: isArabic ? "المعلومات العامة" : "General Info"),
+
+                                    _SectionLabel(
+                                      label: isArabic
+                                          ? "المعلومات العامة"
+                                          : "General Info",
+                                      isArabic: isArabic,
+                                    ),
                                     _InfoGroupCard(
                                       children: [
                                         _InfoRow(
-                                          label: isArabic ? "رقم الطالب" : "Student ID", 
+                                          label: isArabic
+                                              ? "رقم الطالب"
+                                              : "Student ID",
                                           value: data['StudentID'],
                                         ),
-                                        const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                                        const Divider(
+                                          height: 1,
+                                          thickness: 1,
+                                          color: Color(0xFFF2F3F5),
+                                        ),
                                         _InfoRow(
-                                          label: isArabic ? "رقم المدرسة" : "School ID", 
+                                          label: isArabic
+                                              ? "رقم المدرسة"
+                                              : "School ID",
                                           value: data['SchoolID'],
                                         ),
-                                        const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                                        const Divider(
+                                          height: 1,
+                                          thickness: 1,
+                                          color: Color(0xFFF2F3F5),
+                                        ),
                                         _InfoRow(
-                                          label: isArabic ? "رقم الحافلة" : "Bus ID", 
+                                          label: isArabic
+                                              ? "رقم الحافلة"
+                                              : "Bus ID",
                                           value: data['BusID'],
                                         ),
                                       ],
                                     ),
-                                    
+
                                     const SizedBox(height: 24),
-                                    
-                                    _SectionLabel(label: isArabic ? "الموقع الجغرافي" : "Geographical Location"),
+
+                                    _SectionLabel(
+                                      label: isArabic
+                                          ? "الموقع الجغرافي"
+                                          : "Geographical Location",
+                                      isArabic: isArabic,
+                                    ),
                                     _InfoGroupCard(
                                       children: [
                                         _InfoRow(
-                                          label: isArabic ? "خطوط الطول" : "Latitude", 
+                                          label: isArabic
+                                              ? "خطوط الطول"
+                                              : "Latitude",
                                           value: data['Latitude'],
                                         ),
-                                        const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                                        const Divider(
+                                          height: 1,
+                                          thickness: 1,
+                                          color: Color(0xFFF2F3F5),
+                                        ),
                                         _InfoRow(
-                                          label: isArabic ? "خطوط العرض" : "Longitude", 
+                                          label: isArabic
+                                              ? "خطوط العرض"
+                                              : "Longitude",
                                           value: data['Longitude'],
                                         ),
                                       ],
@@ -106,14 +151,19 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
                                   ],
                                 ),
                               ),
-                              
+
                               const SizedBox(height: 32),
-                              
+
                               _ActionButton(
-                                label: isArabic ? "حذف بيانات الطالب" : "Delete Student",
+                                label: isArabic
+                                    ? "حذف بيانات الطالب"
+                                    : "Delete Student",
                                 icon: Icons.delete_outline,
                                 color: _kDanger,
-                                onTap: () => _confirmDelete(context),
+                                onTap: () => _confirmDelete(
+                                  context,
+                                  nameAr,
+                                ), // نمرر الاسم للبحث في الطلبات
                               ),
                             ],
                           ),
@@ -131,20 +181,36 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
+  // --- دالة الحذف المعدلة (حذف الطالب + حذف الطلبات المرتبطة) ---
+  Future<void> _confirmDelete(
+    BuildContext context,
+    String studentNameAr,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => Directionality(
         textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(isArabic ? "تأكيد الحذف" : "Confirm Delete"),
-          content: Text(isArabic ? "هل أنت متأكد من حذف بيانات هذا الطالب؟" : "Are you sure you want to delete this student?"),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(isArabic ? "تأكيد الحذف الشامل" : "Confirm Full Delete"),
+          content: Text(
+            isArabic
+                ? "سيتم حذف بيانات الطالب وجميع طلبات التسجيل المرتبطة به. هل أنت متأكد؟"
+                : "This will delete student info and all associated registration requests. Continue?",
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(isArabic ? "إلغاء" : "Cancel")),
             TextButton(
-              onPressed: () => Navigator.pop(ctx, true), 
-              child: Text(isArabic ? "حذف" : "Delete", style: const TextStyle(color: _kDanger)),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(isArabic ? "إلغاء" : "Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(
+                isArabic ? "حذف الكل" : "Delete All",
+                style: const TextStyle(color: _kDanger),
+              ),
             ),
           ],
         ),
@@ -152,8 +218,35 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
     );
 
     if (confirm == true) {
-      await _ref.delete();
-      if (mounted) Navigator.pop(context);
+      try {
+        // 1. حذف الطلبات المرتبطة من StudentRequests (البحث بالاسم العربي)
+        final requestDocs = await FirebaseFirestore.instance
+            .collection('StudentRequests')
+            .where('name_ar', isEqualTo: studentNameAr)
+            .get();
+
+        for (var doc in requestDocs.docs) {
+          await doc.reference.delete();
+        }
+
+        // 2. حذف مستند الطالب الأصلي
+        await _ref.delete();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isArabic
+                    ? "تم حذف الطالب وطلباته بنجاح"
+                    : "Student and requests deleted",
+              ),
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        debugPrint("Error during delete: $e");
+      }
     }
   }
 
@@ -162,7 +255,9 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
       height: 85,
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
         elevation: 0,
@@ -170,16 +265,20 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
         currentIndex: 0,
         onTap: (index) {
           if (index == 0) Navigator.pushReplacementNamed(context, '/AdminHome');
           if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
         },
         items: [
-          BottomNavigationBarItem(icon: const Icon(Icons.home_rounded, size: 28), label: isArabic ? 'الرئيسية' : 'Home'),
-          BottomNavigationBarItem(icon: const Icon(Icons.person_rounded, size: 28), label: isArabic ? 'الملف' : 'Profile'),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.home_rounded, size: 28),
+            label: isArabic ? 'الرئيسية' : 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.person_rounded, size: 28),
+            label: isArabic ? 'الملف' : 'Profile',
+          ),
         ],
       ),
     );
@@ -191,7 +290,11 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
 class _TopHeader extends StatelessWidget {
   final String title;
   final VoidCallback onBack, onLang;
-  const _TopHeader({required this.title, required this.onBack, required this.onLang});
+  const _TopHeader({
+    required this.title,
+    required this.onBack,
+    required this.onLang,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -201,11 +304,28 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
-          IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white, size: 22)),
+          IconButton(
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
+          ),
           const Spacer(),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           const Spacer(),
-          IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20)),
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
         ],
       ),
     );
@@ -221,12 +341,17 @@ class _MainCardContainer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(children: children),
     );
@@ -243,15 +368,27 @@ class _ProfileSection extends StatelessWidget {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: Icon(Icons.edit_note, color: Colors.grey.shade400, size: 28),
+          child: Icon(Icons.edit_note, color: Colors.grey.shade300, size: 28),
         ),
         Container(
-          width: 90, height: 90,
-          decoration: const BoxDecoration(color: Color(0xFFFFC83D), shape: BoxShape.circle),
+          width: 90,
+          height: 90,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFC83D),
+            shape: BoxShape.circle,
+          ),
           child: const Icon(Icons.person, size: 55, color: Colors.white),
         ),
         const SizedBox(height: 16),
-        Text(name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF101828))),
+        Text(
+          name,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF101828),
+          ),
+        ),
       ],
     );
   }
@@ -287,8 +424,22 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF667085), fontSize: 13)),
-          Text(value?.toString() ?? '---', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0D1B36), fontSize: 14)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF667085),
+              fontSize: 13,
+            ),
+          ),
+          Text(
+            value?.toString() ?? '---',
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0D1B36),
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -297,14 +448,22 @@ class _InfoRow extends StatelessWidget {
 
 class _SectionLabel extends StatelessWidget {
   final String label;
-  const _SectionLabel({required this.label});
+  final bool isArabic;
+  const _SectionLabel({required this.label, required this.isArabic});
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: isArabic ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 10, right: 4),
-        child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF98AF8D))),
+        padding: const EdgeInsets.only(bottom: 10, right: 4, left: 4),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF98AF8D),
+          ),
+        ),
       ),
     );
   }
@@ -315,12 +474,18 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  const _ActionButton({required this.label, required this.icon, required this.color, required this.onTap});
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         decoration: BoxDecoration(
@@ -333,7 +498,14 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 22),
             const SizedBox(width: 10),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14)),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+              ),
+            ),
           ],
         ),
       ),
