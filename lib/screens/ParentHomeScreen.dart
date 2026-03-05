@@ -298,7 +298,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           Navigator.pushNamed(
             context,
             '/manage_child',
-            arguments: {'requestId': requestId},
+            arguments: {'StudentID': requestId},
           );
         },
         child: Padding(

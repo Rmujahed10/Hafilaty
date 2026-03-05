@@ -18,8 +18,12 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
   String attendance = "غائب";
 
-  /// ✅ دالة الحذف الشاملة (StudentRequests + Students)
-  Future<void> _handleDeleteAccount(String requestId, String studentName) async {
+  /// ✅ حذف شامل: Students (بالـ studentId) + StudentRequests (إذا توفر requestId)
+  Future<void> _handleDeleteAccount({
+    required String studentId,
+    required String studentName,
+    String? requestId,
+  }) async {
     final confirm =
         await showDialog<bool>(
           context: context,
@@ -58,36 +62,22 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
 
-      // 1) حذف طلب الطالب
-      final reqRef = db.collection('StudentRequests').doc(requestId);
-      batch.delete(reqRef);
+      // 1) حذف الطالب من Students بواسطة studentId
+      final studentRef = db.collection('Students').doc(studentId);
+      batch.delete(studentRef);
 
-      // 2) حذف الطالب من Students
-      // (A) محاولة: docId = requestId
-      final studentDirectRef = db.collection('Students').doc(requestId);
-      final directSnap = await studentDirectRef.get();
-      if (directSnap.exists) {
-        batch.delete(studentDirectRef);
+      // 2) حذف طلب الطالب من StudentRequests إذا requestId موجود
+      if (requestId != null && requestId.trim().isNotEmpty) {
+        final reqRef = db.collection('StudentRequests').doc(requestId.trim());
+        batch.delete(reqRef);
       } else {
-        // (B) أو البحث بحقل requestId داخل Students
+        // احتياط (إذا عندك studentId داخل StudentRequests)
         final q = await db
-            .collection('Students')
-            .where('requestId', isEqualTo: requestId)
+            .collection('StudentRequests')
+            .where('studentId', isEqualTo: studentId)
             .get();
-
         for (final d in q.docs) {
           batch.delete(d.reference);
-        }
-
-        // (C) خيار احتياطي: البحث بالاسم (غير مفضل لكن خليته احتياط)
-        if (q.docs.isEmpty && studentName.trim().isNotEmpty) {
-          final byName = await db
-              .collection('Students')
-              .where('StudentName_ar', isEqualTo: studentName.trim())
-              .get();
-          for (final d in byName.docs) {
-            batch.delete(d.reference);
-          }
         }
       }
 
@@ -98,7 +88,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
         const SnackBar(content: Text("تم حذف كافة بيانات الطالب بنجاح")),
       );
 
-      // ✅ رجوع للوراء بعد الحذف (عشان Stream ما يعلق)
+      // رجوع بعد الحذف
       Navigator.pop(context);
     } catch (e) {
       debugPrint("Error during deletion: $e");
@@ -118,9 +108,10 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
       return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
     }
 
-    final requestId = (args['requestId'] ?? '').toString();
-    if (requestId.trim().isEmpty) {
-      return const Scaffold(body: Center(child: Text("requestId غير موجود")));
+    // ✅ الآن نعتمد على studentId
+    final studentId = (args['StudentID'] ?? '').toString();
+    if (studentId.trim().isEmpty) {
+      return const Scaffold(body: Center(child: Text("studentId غير موجود")));
     }
 
     return Directionality(
@@ -130,8 +121,8 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
         body: SafeArea(
           child: StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('StudentRequests')
-                .doc(requestId)
+                .collection('Students')
+                .doc(studentId)
                 .snapshots(),
             builder: (context, snapshot) {
               // ✅ تحميل
@@ -145,9 +136,16 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
               }
 
               final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-              final nameAr = (data['name_ar'] ?? '').toString();
-              final nameEn = (data['name_en'] ?? '').toString();
+
+              // ✅ عدّل أسماء الحقول حسب الـ Students عندك
+              final nameAr = (data['StudentName_ar'] ?? '').toString();
+              final nameEn = (data['StudentName'] ?? '').toString();
               final parentPhone = (data['parentPhone'] ?? '').toString();
+
+              // ✅ اختياري: إذا وثيقة الطالب تخزن requestId
+              // (مفيد لحذف الطلب من StudentRequests)
+              final requestId = (data['requestId'] ?? '').toString();
+
               final childName = nameAr.isNotEmpty ? nameAr : nameEn;
               final displayName = childName.isEmpty ? "طالب" : childName;
 
@@ -187,11 +185,14 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                   children: [
                                     const Spacer(),
 
-                                    // ✅ زر حذف الحساب
+                                    // ✅ زر حذف الحساب (يعتمد على studentId)
                                     GestureDetector(
                                       onTap: () => _handleDeleteAccount(
-                                        requestId,
-                                        displayName,
+                                        studentId: studentId,
+                                        studentName: displayName,
+                                        requestId: requestId.isEmpty
+                                            ? (args['requestId']?.toString())
+                                            : requestId,
                                       ),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
@@ -231,8 +232,10 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
                                 const SizedBox(height: 2),
 
-                                // ✅ صورة من users collection
-                                _UserAvatarFromFirestore(parentPhone: parentPhone),
+                                // ✅ صورة ولي الأمر من users collection
+                                _UserAvatarFromFirestore(
+                                  parentPhone: parentPhone,
+                                ),
 
                                 const SizedBox(height: 12),
 
@@ -262,6 +265,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
                                 const SizedBox(height: 16),
 
+                                // ✅ الحضور الآن يحفظ بالـ studentId
                                 FigmaAttendanceBar(
                                   attendance: attendance,
                                   onChanged: (val) async {
@@ -273,13 +277,14 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                           .collection('Attendance')
                                           .doc(todayDate)
                                           .collection('Students')
-                                          .doc(requestId)
+                                          .doc(studentId)
                                           .set({
                                         'name': displayName,
                                         'status': val,
                                         'timestamp':
                                             FieldValue.serverTimestamp(),
                                         'parentPhone': parentPhone,
+                                        'studentId': studentId,
                                       }, SetOptions(merge: true));
 
                                       if (!mounted) return;
@@ -301,8 +306,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                           backgroundColor: val == "حاضر"
                                               ? Colors.green
                                               : Colors.redAccent,
-                                          behavior:
-                                              SnackBarBehavior.floating,
+                                          behavior: SnackBarBehavior.floating,
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
                                                 BorderRadius.circular(10),
