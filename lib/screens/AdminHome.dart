@@ -211,7 +211,7 @@ class _AdminHomeState extends State<AdminHome> {
             return Container(
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFFD4E09B).withOpacity(0.7),
+                color: const Color(0xFFD4E09B).withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Text(
@@ -251,7 +251,7 @@ class _AdminHomeState extends State<AdminHome> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8F9FA),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.withOpacity(0.05)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.05)),
                 ),
                 child: Row(
                   children: [

@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'editDeleteChild.dart';
 
 class RoleHomeScreen extends StatefulWidget {
   const RoleHomeScreen({super.key});
@@ -37,24 +36,27 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
       DocumentSnapshot doc = await FirebaseFirestore.instance.collection('users').doc(phone).get();
 
       if (!doc.exists) {
-        setState(() => loading = false);
+        if (mounted) setState(() => loading = false);
         return;
       }
 
       final data = doc.data() as Map<String, dynamic>;
-      setState(() {
-        fullName = "${data['firstName'] ?? ""} ${data['lastName'] ?? ""}";
-        role = data['role'] ?? "";
-        loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          fullName = "${data['firstName'] ?? ""} ${data['lastName'] ?? ""}";
+          role = data['role'] ?? "";
+          loading = false;
+        });
+      }
     } catch (e) {
       debugPrint("Error loading info: $e");
-      setState(() => loading = false);
+      if (mounted) setState(() => loading = false);
     }
   }
 
   Future<void> _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
+    if (!mounted) return; // Guard against async gap
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
@@ -79,7 +81,9 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
         );
       },
     );
-    if (confirm == true) await _deleteAccount(context);
+    if (confirm == true && mounted) {
+      await _deleteAccount(context);
+    }
   }
 
   Future<void> _deleteAccount(BuildContext context) async {
@@ -87,13 +91,20 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
       final phone = user.email?.split('@')[0];
+      
+      // Delete from Firestore first
       await FirebaseFirestore.instance.collection('users').doc(phone).delete();
+      // Delete from Auth
       await user.delete();
+      
+      if (!mounted) return; // Guard against async gap
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى تسجيل الدخول مرة أخرى لحذف الحساب أمنياً')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('يرجى تسجيل الدخول مرة أخرى لحذف الحساب أمنياً')),
+        );
+      }
     }
   }
 
@@ -117,19 +128,17 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
                           _MainCardContainer(
                             children: [
                               const SizedBox(height: 10),
-                              // Profile Header Section
                               _ProfileAvatar(fullName: fullName),
                               const SizedBox(height: 30),
                               
-                              // --- Menu Items with Dividers ---
                               if (role == "parent") ...[
-  _MenuListItem(
-    label: "أبنائي",
-    icon: Icons.family_restroom,
-    onTap: () => Navigator.pushNamed(context, "/editDeleteChild"),
-  ),
-  const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
-],
+                                _MenuListItem(
+                                  label: "أبنائي",
+                                  icon: Icons.family_restroom,
+                                  onTap: () => Navigator.pushNamed(context, "/editDeleteChild"),
+                                ),
+                                const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+                              ],
                               
                               _MenuListItem(
                                 label: "تعديل الملف الشخصي", 
@@ -143,7 +152,6 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
                               
                               _MenuListItem(label: "الدعم الفني", icon: Icons.headset_mic_outlined, onTap: () {}),
                               
-                              // Thick Divider before the Danger Zone
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 10),
                                 child: Divider(color: Color(0xFFF2F3F5), thickness: 6),
@@ -178,7 +186,6 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
     );
   }
 
-  // ✅ Labeled Bottom Navigation Bar
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -197,9 +204,13 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
         currentIndex: 1,
         onTap: (index) {
           if (index == 0) {
-            if (role == "admin") Navigator.pushReplacementNamed(context, '/AdminHome');
-            else if (role == "parent") Navigator.pushReplacementNamed(context, '/parent_home');
-            else if (role == "driver") Navigator.pushReplacementNamed(context, '/DriverHome');
+            if (role == "admin") {
+              Navigator.pushReplacementNamed(context, '/AdminHome');
+            } else if (role == "parent") {
+              Navigator.pushReplacementNamed(context, '/parent_home');
+            } else if (role == "driver") {
+              Navigator.pushReplacementNamed(context, '/DriverHome');
+            }
           }
         },
         items: const [

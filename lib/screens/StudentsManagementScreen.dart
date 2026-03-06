@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'student_info_screen.dart';
+import 'StudentInfoScreen.dart';
 
 class StudentsManagementScreen extends StatefulWidget {
   const StudentsManagementScreen({super.key});

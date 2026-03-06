@@ -1,10 +1,12 @@
+// ignore_for_file: file_names
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'map_picker_screen.dart'; 
+import 'MapPickerScreen.dart'; 
 
 class RegisterStudentScreen extends StatefulWidget {
   const RegisterStudentScreen({super.key});
@@ -17,14 +19,12 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // --- Controllers ---
   final _nameAr = TextEditingController();
   final _nameEn = TextEditingController();
   final _idNumber = TextEditingController();
   final _parentPhone = TextEditingController(); 
   final _secondPhone = TextEditingController();
 
-  // --- Location Data for Clustering ---
   double? _selectedLat;
   double? _selectedLng;
   String _locationStatus = "اضغط لتحديد موقع المنزل على الخريطة";
@@ -60,14 +60,18 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     }
   }
 
-  // --- Location Logic ---
+  // --- Location Logic with Permission Checks ---
   Future<void> _handleLocationSelection() async {
     bool proceed = await _showLocationWarning();
     if (proceed) {
+      if (!mounted) return;
       final LatLng? result = await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const MapPickerScreen()),
       );
+      
+      // Check mounted after async gap
+      if (!mounted) return;
       if (result != null) {
         _validateAndSaveLocation(result);
       }
@@ -75,21 +79,31 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   }
 
   Future<void> _validateAndSaveLocation(LatLng pickedLocation) async {
-    Position currentPos = await Geolocator.getCurrentPosition();
-    double distance = Geolocator.distanceBetween(
-      currentPos.latitude, currentPos.longitude, 
-      pickedLocation.latitude, pickedLocation.longitude
-    );
+    try {
+      // Ensure permissions are granted before calling getCurrentPosition
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
 
-    if (distance > 150) {
-      _showSimpleAlert("تنبيه: الموقع المختار بعيد عن موقعك الحالي. يرجى التأكد من دقة اختيار منزل الطالب.");
+      Position currentPos = await Geolocator.getCurrentPosition();
+      double distance = Geolocator.distanceBetween(
+        currentPos.latitude, currentPos.longitude, 
+        pickedLocation.latitude, pickedLocation.longitude
+      );
+
+      if (distance > 150) {
+        _showSimpleAlert("تنبيه: الموقع المختار بعيد عن موقعك الحالي. يرجى التأكد من دقة اختيار منزل الطالب لضمان وصول الباص.");
+      }
+
+      setState(() {
+        _selectedLat = pickedLocation.latitude;
+        _selectedLng = pickedLocation.longitude;
+        _locationStatus = "تم تحديد الموقع بنجاح ✅";
+      });
+    } catch (e) {
+      _showSimpleAlert("تعذر التحقق من الموقع: $e");
     }
-
-    setState(() {
-      _selectedLat = pickedLocation.latitude;
-      _selectedLng = pickedLocation.longitude;
-      _locationStatus = "تم تحديد الموقع بنجاح ✅";
-    });
   }
 
   @override
@@ -116,9 +130,8 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _SectionLabel(label: "بيانات الطالب الأساسية"),
+                                const _SectionLabel(label: "بيانات الطالب الأساسية"),
                                 
-                                // Arabic Name: Only Arabic characters + Spaces
                                 _buildSmartField(
                                   "اسم الطالب ثلاثي (بالعربي)", _nameAr, Icons.person_outline,
                                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\u0600-\u06FF\s]'))],
@@ -129,7 +142,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                   },
                                 ),
 
-                                // English Name: Only English letters + Spaces
                                 _buildSmartField(
                                   "Student Triple Name (English)", _nameEn, Icons.person_outline,
                                   isEnglish: true,
@@ -141,7 +153,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                   },
                                 ),
 
-                                // ID Number: Numbers only, Max 10 digits
                                 _buildSmartField(
                                   "رقم الهوية", _idNumber, Icons.badge_outlined,
                                   isNumber: true,
@@ -156,14 +167,13 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                   },
                                 ),
                                 
-                                _SectionLabel(label: "موقع المنزل (مهم جداً للحافلة)"),
+                                const _SectionLabel(label: "موقع المنزل (مهم جداً للحافلة)"),
                                 _buildLocationPicker(),
                                 const SizedBox(height: 20),
 
-                                _SectionLabel(label: "بيانات التواصل"),
+                                const _SectionLabel(label: "بيانات التواصل"),
                                 _buildSmartField("رقم الجوال المسجل", _parentPhone, Icons.verified_user_outlined, isReadOnly: true),
 
-                                // Secondary Phone: Numbers only, Max 10 digits, Start with 05
                                 _buildSmartField(
                                   "رقم الجوال الإضافي", _secondPhone, Icons.phone_enabled_outlined,
                                   isNumber: true,
@@ -180,7 +190,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                   },
                                 ),
                                 
-                                _SectionLabel(label: "المعلومات الدراسية"),
+                                const _SectionLabel(label: "المعلومات الدراسية"),
                                 _buildSchoolDropdown(),
                                 _buildGradeDropdown(),
                                 
@@ -212,11 +222,11 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
         decoration: BoxDecoration(
           color: Colors.grey[100],
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _selectedLat == null ? Colors.red.withOpacity(0.3) : Colors.transparent),
+          border: Border.all(color: _selectedLat == null ? Colors.red.withValues(alpha: 0.3) : Colors.transparent),
         ),
         child: Row(
           children: [
-            Icon(Icons.map_rounded, color: _kAccent),
+            const Icon(Icons.map_rounded, color: _kAccent),
             const SizedBox(width: 12),
             Expanded(
               child: Text(_locationStatus, 
@@ -301,7 +311,6 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
     }
   }
 
-  // Helper Methods for UI (Dropdowns, Alerts, Headers)
   Future<bool> _showLocationWarning() async {
     return await showDialog(
       context: context,
@@ -331,7 +340,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
           label: "المدرسة",
           child: DropdownButtonFormField<String>(
             decoration: const InputDecoration(border: InputBorder.none),
-            value: selectedSchoolId,
+            initialValue: selectedSchoolId, // FIXED: Use initialValue instead of value
             items: snapshot.hasData ? snapshot.data!.docs.map((doc) => DropdownMenuItem(value: doc.id, child: Text(doc['School Name_ar']))).toList() : [],
             onChanged: (val) {
               setState(() {
@@ -350,7 +359,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
       label: "الصف الدراسي",
       child: DropdownButtonFormField<String>(
         decoration: const InputDecoration(border: InputBorder.none),
-        value: selectedGrade,
+        initialValue: selectedGrade, // FIXED: Use initialValue instead of value
         items: grades.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
         onChanged: (val) => setState(() => selectedGrade = val),
       ),
@@ -391,7 +400,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
         width: 100, height: 100,
         decoration: BoxDecoration(
           shape: BoxShape.circle, color: Colors.white,
-          border: Border.all(color: _kDarkBlue.withOpacity(0.1), width: 4),
+          border: Border.all(color: _kDarkBlue.withValues(alpha: 0.1), width: 4),
           image: const DecorationImage(image: NetworkImage('https://cdn-icons-png.flaticon.com/512/3135/3135715.png')),
         ),
       ),

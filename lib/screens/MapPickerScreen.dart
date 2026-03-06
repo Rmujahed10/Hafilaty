@@ -1,3 +1,4 @@
+// ignore_for_file: file_names
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -17,7 +18,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   bool _isLoading = true;
   GoogleMapController? _mapController;
 
-  // Controller for the Search Bar
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -36,7 +36,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
     LocationPermission permission = await Geolocator.checkPermission();
 
-    // If permission is denied, we MUST request it
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
@@ -45,26 +44,30 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       }
     }
 
-    // If permanently denied, the user has to go to settings
     if (permission == LocationPermission.deniedForever) {
       _showError("إذن الموقع مرفوض تماماً، يرجى تفعيله من إعدادات الهاتف");
       return;
     }
 
     Position position = await Geolocator.getCurrentPosition();
-    setState(() {
-      _currentPosition = LatLng(position.latitude, position.longitude);
-      _draggedPosition = _currentPosition;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _draggedPosition = _currentPosition;
+        _isLoading = false;
+      });
+      // Move camera to user's current location immediately
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(_currentPosition!, 17.5),
+      );
+    }
   }
 
   /// 2. Search logic using Google Places API
   Future<void> _searchPlace(String input) async {
     if (input.isEmpty) return;
 
-    // Use the same API Key you used for iOS/Web
-    const String apiKey = "YOUR_GOOGLE_MAPS_API_KEY";
+    const String apiKey = "AIzaSyARnCLe7aF1DOBNN9M7ahz9rTCMOgeO7kc";
     final String url =
         "https://maps.googleapis.com/maps/api/place/textsearch/json?query=$input&key=$apiKey";
 
@@ -74,10 +77,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
       if (json['status'] == 'OK') {
         var loc = json['results'][0]['geometry']['location'];
+        var target = LatLng(loc['lat'], loc['lng']);
+        
         _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(LatLng(loc['lat'], loc['lng']), 16.5),
+          CameraUpdate.newLatLngZoom(target, 16.5),
         );
-        // Hide keyboard after search
+        
+        // FIXED: Guarding the async gap
+        if (!mounted) return;
         FocusScope.of(context).unfocus();
       } else {
         _showError("لم يتم العثور على الموقع، حاول كتابة اسم الحي");
@@ -97,59 +104,49 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   void _showError(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset:
-          false, // Prevents map shifting when keyboard opens
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text(
           "تحديد موقع المنزل",
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: const Color(0xFF0D1B36),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0D1B36)))
           : Stack(
               children: [
-                // --- THE MAP ---
                 GoogleMap(
                   initialCameraPosition: CameraPosition(
                     target: _currentPosition!,
                     zoom: 17.5,
                   ),
                   onMapCreated: (controller) => _mapController = controller,
-                  onCameraMove: (pos) => _draggedPosition = pos.target,
-                  myLocationEnabled: true, // Enables the Blue Dot
-                  myLocationButtonEnabled:
-                      false, // Using our custom button instead
+                  onCameraMove: (pos) {
+                    _draggedPosition = pos.target;
+                  },
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: false,
+                  padding: const EdgeInsets.only(bottom: 100), // Avoid UI overlap
                 ),
 
                 // --- SEARCH BAR ---
                 Positioned(
-                  top: 15,
-                  left: 15,
-                  right: 15,
+                  top: 15, left: 15, right: 15,
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 10),
-                      ],
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
                     ),
                     child: TextField(
                       controller: _searchController,
@@ -157,22 +154,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       onSubmitted: _searchPlace,
                       decoration: InputDecoration(
                         hintText: "بحث عن حي أو شارع...",
-                        hintStyle: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
+                        hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
                         prefixIcon: IconButton(
-                          icon: const Icon(
-                            Icons.search,
-                            color: Color(0xFF0D1B36),
-                          ),
+                          icon: const Icon(Icons.search, color: Color(0xFF0D1B36)),
                           onPressed: () => _searchPlace(_searchController.text),
                         ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                          horizontal: 10,
-                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
                       ),
                     ),
                   ),
@@ -183,60 +171,43 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.location_on,
-                        color: Colors.red.shade700,
-                        size: 50,
-                      ),
+                      Icon(Icons.location_on, color: Colors.red.shade700, size: 50),
                       Container(
-                        width: 10,
-                        height: 5,
+                        width: 10, height: 5,
                         decoration: BoxDecoration(
                           color: Colors.black26,
                           borderRadius: BorderRadius.circular(5),
                         ),
                       ),
-                      const SizedBox(height: 35), // Pin point alignment
+                      const SizedBox(height: 35),
                     ],
                   ),
                 ),
 
                 // --- RECENTER BUTTON ---
                 Positioned(
-                  bottom: 115,
-                  right: 20,
+                  bottom: 115, right: 20,
                   child: FloatingActionButton(
                     mini: true,
                     backgroundColor: Colors.white,
                     onPressed: _recenterMap,
-                    child: const Icon(
-                      Icons.my_location,
-                      color: Color(0xFF0D1B36),
-                    ),
+                    child: const Icon(Icons.my_location, color: Color(0xFF0D1B36)),
                   ),
                 ),
 
                 // --- CONFIRM BUTTON ---
                 Positioned(
-                  bottom: 40,
-                  left: 20,
-                  right: 20,
+                  bottom: 40, left: 20, right: 20,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0D1B36),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () => Navigator.pop(context, _draggedPosition),
                     child: const Text(
                       "تأكيد هذا الموقع",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
                 ),

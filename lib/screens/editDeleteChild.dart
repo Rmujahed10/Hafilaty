@@ -62,65 +62,74 @@ class _EditDeleteChildScreenState extends State<EditDeleteChildScreen> {
                         child: CircularProgressIndicator(color: _kHeaderBlue),
                       )
                     : parentPhone.trim().isEmpty
-                        ? const Center(child: Text("لم يتم العثور على رقم ولي الأمر"))
-                        : StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('Students')
-                                .where('parentPhone', isEqualTo: parentPhone)
-                                .snapshots(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const Center(
-                                  child: CircularProgressIndicator(color: _kHeaderBlue),
-                                );
-                              }
+                    ? const Center(
+                        child: Text("لم يتم العثور على رقم ولي الأمر"),
+                      )
+                    : StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('Students')
+                            .where('parentPhone', isEqualTo: parentPhone)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: _kHeaderBlue,
+                              ),
+                            );
+                          }
 
-                              final docs = snapshot.data?.docs ?? [];
-                              if (docs.isEmpty) {
-                                return const Center(
-                                  child: Text(
-                                    "لا يوجد أبناء مسجلين حالياً",
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                );
-                              }
+                          final docs = snapshot.data?.docs ?? [];
+                          if (docs.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                "لا يوجد أبناء مسجلين حالياً",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            );
+                          }
 
-                              return ListView.builder(
-                                padding: const EdgeInsets.all(14),
-                                itemCount: docs.length,
-                                itemBuilder: (context, i) {
-                                  final doc = docs[i];
-                                  final data = doc.data() as Map<String, dynamic>? ?? {};
-                                  final studentId = doc.id;
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(14),
+                            itemCount: docs.length,
+                            itemBuilder: (context, i) {
+                              final doc = docs[i];
+                              final data =
+                                  doc.data() as Map<String, dynamic>? ?? {};
+                              final studentId = doc.id;
 
-                                  final nameAr =
-                                      (data['StudentName_ar'] ?? '').toString().trim();
-                                  final nameEn =
-                                      (data['StudentName'] ?? '').toString().trim();
-                                  final displayName = nameAr.isNotEmpty
-                                      ? nameAr
-                                      : (nameEn.isNotEmpty ? nameEn : "طالب");
+                              final nameAr = (data['StudentName_ar'] ?? '')
+                                  .toString()
+                                  .trim();
+                              final nameEn = (data['StudentName'] ?? '')
+                                  .toString()
+                                  .trim();
+                              final displayName = nameAr.isNotEmpty
+                                  ? nameAr
+                                  : (nameEn.isNotEmpty ? nameEn : "طالب");
 
-                                  return _StudentTileCard(
-                                    name: displayName,
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ChildDetailsEditDeleteScreen(
+                              return _StudentTileCard(
+                                name: displayName,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ChildDetailsEditDeleteScreen(
                                             studentId: studentId,
                                           ),
-                                        ),
-                                      );
-                                    },
+                                    ),
                                   );
                                 },
                               );
                             },
-                          ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -159,7 +168,6 @@ class _ChildDetailsEditDeleteScreenState
   bool _isEditing = false;
   bool _saving = false;
 
-  // للعرض الثابت (قراءة فقط)
   String _studentNameAr = "";
   String _studentNameEn = "";
   String _parentPhone = "";
@@ -187,7 +195,6 @@ class _ChildDetailsEditDeleteScreenState
     _schoolName = (data['SchoolName'] ?? '').toString().trim();
     _grade = (data['Grade'] ?? '').toString().trim();
 
-    // controllers تُستخدم فقط وقت التعديل
     _nameArCtrl.text = _studentNameAr;
     _nameEnCtrl.text = _studentNameEn;
     _parentPhoneCtrl.text = _parentPhone;
@@ -203,10 +210,6 @@ class _ChildDetailsEditDeleteScreenState
   void _enterEditMode() {
     setState(() {
       _isEditing = true;
-      _nameArCtrl.text = _studentNameAr;
-      _nameEnCtrl.text = _studentNameEn;
-      _parentPhoneCtrl.text = _parentPhone;
-      _secondPhoneCtrl.text = _secondPhone;
     });
   }
 
@@ -240,11 +243,11 @@ class _ChildDetailsEditDeleteScreenState
           .collection('Students')
           .doc(widget.studentId)
           .update({
-        'StudentName_ar': newNameAr,
-        'StudentName': newNameEn,
-        'parentPhone': newParentPhone,
-        'secondPhone': newSecondPhone,
-      });
+            'StudentName_ar': newNameAr,
+            'StudentName': newNameEn,
+            'parentPhone': newParentPhone,
+            'secondPhone': newSecondPhone,
+          });
 
       setState(() {
         _studentNameAr = newNameAr;
@@ -260,15 +263,15 @@ class _ChildDetailsEditDeleteScreenState
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("تم حفظ التعديلات بنجاح")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("تم حفظ التعديلات بنجاح")));
     } catch (e) {
       debugPrint("Save error: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("حدث  خطأ أثناء الحفظ")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحفظ")));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -281,15 +284,29 @@ class _ChildDetailsEditDeleteScreenState
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text("حذف حساب الابن", style: TextStyle(fontWeight: FontWeight.w900)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              "حذف حساب الابن",
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
             content: Text("هل تريد تحذف حساب ($_titleName) نهائياً؟"),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("إلغاء")),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("إلغاء"),
+              ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: _kDanger),
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text("حذف", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                child: const Text(
+                  "حذف",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
             ],
           ),
@@ -317,16 +334,16 @@ class _ChildDetailsEditDeleteScreenState
       await batch.commit();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("تم حذف حساب الابن بنجاح")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("تم حذف حساب الابن بنجاح")));
 
       Navigator.pop(context);
     } catch (e) {
       debugPrint("Delete error: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("حدث  خطأ أثناء حدف الحساب")),
+        const SnackBar(content: Text("حدث خطأ أثناء حدف الحساب")),
       );
     }
   }
@@ -359,10 +376,13 @@ class _ChildDetailsEditDeleteScreenState
                     }
 
                     if (!snapshot.hasData || !snapshot.data!.exists) {
-                      return const Center(child: Text("الطالب غير موجود أو تم حذفه"));
+                      return const Center(
+                        child: Text("الطالب غير موجود أو تم حذفه"),
+                      );
                     }
 
-                    final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                    final data =
+                        snapshot.data!.data() as Map<String, dynamic>? ?? {};
                     _initOnce(data);
 
                     return SingleChildScrollView(
@@ -387,39 +407,48 @@ class _ChildDetailsEditDeleteScreenState
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Row(
-  children: [
-    Expanded(
-      child: Text(
-        _titleName,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF101828),
-        ),
-      ),
-    ),
-
-    // ✅ عرض: زر تعديل — تعديل: (حفظ + إلغاء)
-    if (!_isEditing) ...[
-      IconButton(
-        tooltip: "تعديل",
-        onPressed: _enterEditMode,
-        icon: const Icon(Icons.edit_outlined, color: Color(0xFF98A2B3)),
-      ),
-    ] else ...[
-      IconButton(
-        tooltip: "حفظ",
-        onPressed: _saving ? null : _saveEdits,
-        icon: const Icon(Icons.check_circle, color: Color(0xFF2E7D32)),
-      ),
-      IconButton(
-        tooltip: "إلغاء",
-        onPressed: _saving ? null : _cancelEditMode,
-        icon: const Icon(Icons.cancel, color: Color(0xFFD64545)),
-      ),
-    ],
-  ],
-),
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _titleName,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF101828),
+                                      ),
+                                    ),
+                                  ),
+                                  if (!_isEditing) ...[
+                                    IconButton(
+                                      tooltip: "تعديل",
+                                      onPressed: _enterEditMode,
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        color: Color(0xFF98A2B3),
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    IconButton(
+                                      tooltip: "حفظ",
+                                      onPressed: _saving ? null : _saveEdits,
+                                      icon: const Icon(
+                                        Icons.check_circle,
+                                        color: Color(0xFF2E7D32),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: "إلغاء",
+                                      onPressed: _saving
+                                          ? null
+                                          : _cancelEditMode,
+                                      icon: const Icon(
+                                        Icons.cancel,
+                                        color: Color(0xFFD64545),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                               const SizedBox(height: 14),
 
                               const _SectionTitle(title: "معلومات الطالب"),
@@ -430,7 +459,9 @@ class _ChildDetailsEditDeleteScreenState
                                 icon: Icons.person_outline,
                                 isEditing: _isEditing,
                                 controller: _nameArCtrl,
-                                value: _studentNameAr.isEmpty ? "-" : _studentNameAr,
+                                value: _studentNameAr.isEmpty
+                                    ? "-"
+                                    : _studentNameAr,
                                 validator: _validateRequired,
                               ),
                               const SizedBox(height: 12),
@@ -439,7 +470,9 @@ class _ChildDetailsEditDeleteScreenState
                                 icon: Icons.person_outline,
                                 isEditing: _isEditing,
                                 controller: _nameEnCtrl,
-                                value: _studentNameEn.isEmpty ? "-" : _studentNameEn,
+                                value: _studentNameEn.isEmpty
+                                    ? "-"
+                                    : _studentNameEn,
                                 validator: _validateRequired,
                               ),
 
@@ -453,7 +486,9 @@ class _ChildDetailsEditDeleteScreenState
                                 isEditing: _isEditing,
                                 controller: _parentPhoneCtrl,
                                 keyboardType: TextInputType.phone,
-                                value: _parentPhone.isEmpty ? "-" : _parentPhone,
+                                value: _parentPhone.isEmpty
+                                    ? "-"
+                                    : _parentPhone,
                                 validator: _validateRequired,
                               ),
                               const SizedBox(height: 12),
@@ -463,7 +498,9 @@ class _ChildDetailsEditDeleteScreenState
                                 isEditing: _isEditing,
                                 controller: _secondPhoneCtrl,
                                 keyboardType: TextInputType.phone,
-                                value: _secondPhone.isEmpty ? "-" : _secondPhone,
+                                value: _secondPhone.isEmpty
+                                    ? "-"
+                                    : _secondPhone,
                               ),
 
                               const SizedBox(height: 18),
@@ -490,15 +527,21 @@ class _ChildDetailsEditDeleteScreenState
                                 height: 56,
                                 child: OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: _kDanger, width: 1.5),
+                                    side: const BorderSide(
+                                      color: _kDanger,
+                                      width: 1.5,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(14),
                                     ),
-                                    backgroundColor: _kDanger.withOpacity(0.06),
+                                    backgroundColor: _kDanger.withValues(alpha: 0.06), // FIXED DEPRECATION
                                   ),
                                   onPressed: _confirmAndDelete,
-                                  icon: const Icon(Icons.delete_outline,
-                                      color: _kDanger, size: 28),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: _kDanger,
+                                    size: 28,
+                                  ),
                                   label: const Text(
                                     "حذف حساب الابن",
                                     style: TextStyle(
@@ -531,10 +574,7 @@ class _StudentTileCard extends StatelessWidget {
   final String name;
   final VoidCallback onTap;
 
-  const _StudentTileCard({
-    required this.name,
-    required this.onTap,
-  });
+  const _StudentTileCard({required this.name, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -700,7 +740,10 @@ class _EditableOrReadOnly extends StatelessWidget {
             filled: true,
             fillColor: const Color(0xFFF7F7F8),
             prefixIcon: Icon(icon, color: const Color(0xFF98AF8D)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,

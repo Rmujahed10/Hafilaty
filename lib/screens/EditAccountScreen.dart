@@ -49,7 +49,6 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
   @override
   void dispose() {
-    // Standard disposal of all controllers
     _firstNameController.dispose();
     _lastNameController.dispose();
     _idController.dispose();
@@ -159,9 +158,13 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
       }
 
       await FirebaseFirestore.instance.collection('users').doc(_phoneDocId!).update(updatedData);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث البيانات بنجاح.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث البيانات بنجاح.')));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ أثناء تحديث البيانات.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ أثناء تحديث البيانات.')));
+      }
     }
     setState(() => _isUpdating = false);
   }
@@ -193,7 +196,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      _SectionLabel(label: "المعلومات الشخصية"),
+                                      const _SectionLabel(label: "المعلومات الشخصية"),
                                       Row(
                                         children: [
                                           Expanded(child: _buildProfileField(label: 'الاسم الأول', controller: _firstNameController, icon: Icons.person_outline)),
@@ -205,7 +208,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
                                       if (_role == 'parent') ...[
                                         const SizedBox(height: 16),
-                                        _SectionLabel(label: "بيانات الموقع"),
+                                        const _SectionLabel(label: "بيانات الموقع"),
                                         _buildProfileField(label: 'المدينة', controller: _cityController, icon: Icons.location_city_outlined),
                                         _buildProfileField(label: 'الحي', controller: _districtController, icon: Icons.map_outlined),
                                         _buildProfileField(label: 'الشارع', controller: _streetController, icon: Icons.streetview_outlined),
@@ -213,19 +216,19 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
                                       if (_role == 'driver') ...[
                                         const SizedBox(height: 16),
-                                        _SectionLabel(label: "بيانات القيادة"),
+                                        const _SectionLabel(label: "بيانات القيادة"),
                                         _buildProfileField(label: 'رقم الرخصة', controller: _licenseController, isNumber: true, hint: "1xxxxxxxxx", icon: Icons.card_membership_outlined),
                                         _buildProfileField(label: 'تاريخ الميلاد', controller: _birthDateController, isReadOnly: true, onTap: _pickDate, hint: "اضغط للتعديل", icon: Icons.calendar_today_outlined),
                                       ],
 
                                       if (_role == 'admin') ...[
                                         const SizedBox(height: 16),
-                                        _SectionLabel(label: "بيانات الإدارة"),
+                                        const _SectionLabel(label: "بيانات الإدارة"),
                                         _buildProfileField(label: 'المدرسة', controller: _schoolController, icon: Icons.school_outlined),
                                       ],
 
                                       const SizedBox(height: 16),
-                                      _SectionLabel(label: "معلومات التواصل"),
+                                      const _SectionLabel(label: "معلومات التواصل"),
                                       _buildProfileField(label: 'رقم الجوال', controller: _phoneController, isNumber: true, hint: "05xxxxxxxx", icon: Icons.phone_android_outlined),
                                       _buildProfileField(label: 'البريد الإلكتروني', controller: _emailController, hint: "example@mail.com", icon: Icons.email_outlined),
 
@@ -328,9 +331,11 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         currentIndex: 1, // Profile active
         onTap: (index) {
           if (index == 0) {
-            // Role-based navigation
-            if (_role == "admin") Navigator.pushReplacementNamed(context, '/AdminHome');
-            else if (_role == "parent") Navigator.pushReplacementNamed(context, '/parent_home');
+            if (_role == "admin") {
+              Navigator.pushReplacementNamed(context, '/AdminHome');
+            } else if (_role == "parent") {
+              Navigator.pushReplacementNamed(context, '/parent_home');
+            }
           }
         },
         items: const [
@@ -342,7 +347,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
   }
 }
 
-/* -------------------- Generic Project UI Kit -------------------- */
+/* -------------------- UI Kit Components -------------------- */
 
 class _TopHeader extends StatelessWidget {
   final String title;

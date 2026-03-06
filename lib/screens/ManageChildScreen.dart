@@ -462,7 +462,7 @@ class _TimelineCard extends StatelessWidget {
                     width: 22,
                     height: 22,
                     decoration: BoxDecoration(
-                      color: item.dotColor.withOpacity(0.15),
+                      color: item.dotColor.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(item.icon, size: 14, color: item.dotColor),
