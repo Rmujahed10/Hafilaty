@@ -16,6 +16,7 @@ import 'screens/BusManagementScreen.dart';
 import 'screens/ParentHomeScreen.dart';
 import 'screens/RegistrationRequests.dart';
 import 'screens/ManageChildScreen.dart';
+import 'screens/editDeleteChild.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,6 +132,7 @@ class HafilatyApp extends StatelessWidget {
         '/parent_home': (context) => const ParentHomeScreen(),
         '/registration_requests': (context) => const RegistrationRequests(),
         '/manage_child': (_) => const ManageChildScreen(),
+        "/editDeleteChild": (context) => const EditDeleteChildScreen(),
         
       },
     );

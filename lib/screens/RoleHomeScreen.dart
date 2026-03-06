@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'editDeleteChild.dart';
 
 class RoleHomeScreen extends StatefulWidget {
   const RoleHomeScreen({super.key});
@@ -122,9 +123,13 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
                               
                               // --- Menu Items with Dividers ---
                               if (role == "parent") ...[
-                                _MenuListItem(label: "أبنائي", icon: Icons.family_restroom, onTap: () {}),
-                                const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
-                              ],
+  _MenuListItem(
+    label: "أبنائي",
+    icon: Icons.family_restroom,
+    onTap: () => Navigator.pushNamed(context, "/editDeleteChild"),
+  ),
+  const Divider(height: 1, thickness: 1, color: Color(0xFFF2F3F5)),
+],
                               
                               _MenuListItem(
                                 label: "تعديل الملف الشخصي", 

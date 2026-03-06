@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:hijri/hijri_calendar.dart';
 
 class ManageChildScreen extends StatefulWidget {
   const ManageChildScreen({super.key});
@@ -16,89 +15,6 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
   static const Color _kCard = Colors.white;
 
-  String attendance = "غائب";
-
-  /// ✅ حذف شامل: Students (بالـ studentId) + StudentRequests (إذا توفر requestId)
-  Future<void> _handleDeleteAccount({
-    required String studentId,
-    required String studentName,
-    String? requestId,
-  }) async {
-    final confirm =
-        await showDialog<bool>(
-          context: context,
-          builder: (ctx) => Directionality(
-            textDirection: TextDirection.rtl,
-            child: AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              title: const Text("تأكيد الحذف النهائي"),
-              content: Text(
-                "هل أنت متأكد من حذف حساب الطالب ($studentName)؟ سيتم مسح البيانات من كافة السجلات.",
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text("إلغاء"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text(
-                    "حذف الآن",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ) ??
-        false;
-
-    if (!confirm) return;
-
-    try {
-      final db = FirebaseFirestore.instance;
-      final batch = db.batch();
-
-      // 1) حذف الطالب من Students بواسطة studentId
-      final studentRef = db.collection('Students').doc(studentId);
-      batch.delete(studentRef);
-
-      // 2) حذف طلب الطالب من StudentRequests إذا requestId موجود
-      if (requestId != null && requestId.trim().isNotEmpty) {
-        final reqRef = db.collection('StudentRequests').doc(requestId.trim());
-        batch.delete(reqRef);
-      } else {
-        // احتياط (إذا عندك studentId داخل StudentRequests)
-        final q = await db
-            .collection('StudentRequests')
-            .where('studentId', isEqualTo: studentId)
-            .get();
-        for (final d in q.docs) {
-          batch.delete(d.reference);
-        }
-      }
-
-      await batch.commit();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("تم حذف كافة بيانات الطالب بنجاح")),
-      );
-
-      // رجوع بعد الحذف
-      Navigator.pop(context);
-    } catch (e) {
-      debugPrint("Error during deletion: $e");
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("صار خطأ أثناء الحذف، حاول مرة ثانية")),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final args =
@@ -108,7 +24,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
       return const Scaffold(body: Center(child: Text("لا توجد بيانات")));
     }
 
-    // ✅ الآن نعتمد على studentId
+    // ✅ نعتمد على studentId
     final studentId = (args['StudentID'] ?? '').toString();
     if (studentId.trim().isEmpty) {
       return const Scaffold(body: Center(child: Text("studentId غير موجود")));
@@ -142,20 +58,16 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
               final nameEn = (data['StudentName'] ?? '').toString();
               final parentPhone = (data['parentPhone'] ?? '').toString();
 
-              // ✅ اختياري: إذا وثيقة الطالب تخزن requestId
-              // (مفيد لحذف الطلب من StudentRequests)
-              final requestId = (data['requestId'] ?? '').toString();
-
               final childName = nameAr.isNotEmpty ? nameAr : nameEn;
               final displayName = childName.isEmpty ? "طالب" : childName;
 
-              const noteText =
-                  "يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة : 05:00 صباحاً\nلضمان وصول الباص ووصول الباص في الموعد الملتزم به";
+              // ✅ نفس صيغة التاريخ اللي عندك في Attendance (مثل 2026-03-06)
+              final todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
               return Column(
                 children: [
                   _TopHeader(
-                    title: "إدارة الابن",
+                    title: "تتبع الابن",
                     onBack: () => Navigator.pop(context),
                     onLang: () {},
                   ),
@@ -181,56 +93,8 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                             ),
                             child: Column(
                               children: [
-                                Row(
-                                  children: [
-                                    const Spacer(),
-
-                                    // ✅ زر حذف الحساب (يعتمد على studentId)
-                                    GestureDetector(
-                                      onTap: () => _handleDeleteAccount(
-                                        studentId: studentId,
-                                        studentName: displayName,
-                                        requestId: requestId.isEmpty
-                                            ? (args['requestId']?.toString())
-                                            : requestId,
-                                      ),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: Colors.red.withOpacity(0.5),
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          color: Colors.red.withOpacity(0.05),
-                                        ),
-                                        child: const Text(
-                                          "حذف الحساب",
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    const SizedBox(width: 8),
-
-                                    IconButton(
-                                      onPressed: () {},
-                                      icon: const Icon(
-                                        Icons.edit,
-                                        color: Color(0xFF98A2B3),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                const SizedBox(height: 2),
+                                // ✅❌ تم إزالة: زر حذف الحساب + زر التعديل
+                                const SizedBox(height: 6),
 
                                 // ✅ صورة ولي الأمر من users collection
                                 _UserAvatarFromFirestore(
@@ -250,80 +114,35 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                   ),
                                 ),
 
-                                const SizedBox(height: 6),
-
-                                const Text(
-                                  noteText,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    height: 1.35,
-                                    color: Color(0xFFD64545),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-
                                 const SizedBox(height: 16),
 
-                                // ✅ الحضور الآن يحفظ بالـ studentId
-                                FigmaAttendanceBar(
-                                  attendance: attendance,
-                                  onChanged: (val) async {
-                                    final todayDate = DateFormat('yyyy-MM-dd')
-                                        .format(DateTime.now());
+                                // ✅✅✅ عرض حالة الحضور فقط (غير قابل للضغط)
+                                StreamBuilder<DocumentSnapshot>(
+                                  stream: FirebaseFirestore.instance
+                                      .collection('Attendance')
+                                      .doc(todayDate)
+                                      .collection('PresentStudents')
+                                      .doc(studentId)
+                                      .snapshots(),
+                                  builder: (context, attSnap) {
+                                    String currentStatus = "غائب";
 
-                                    try {
-                                      await FirebaseFirestore.instance
-                                          .collection('Attendance')
-                                          .doc(todayDate)
-                                          .collection('Students')
-                                          .doc(studentId)
-                                          .set({
-                                        'name': displayName,
-                                        'status': val,
-                                        'timestamp':
-                                            FieldValue.serverTimestamp(),
-                                        'parentPhone': parentPhone,
-                                        'studentId': studentId,
-                                      }, SetOptions(merge: true));
-
-                                      if (!mounted) return;
-                                      setState(() => attendance = val);
-
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            val == "حاضر"
-                                                ? "تم تسجيل حضور $displayName بنجاح"
-                                                : "تم تسجيل غياب $displayName",
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontFamily: 'Tajawal',
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          backgroundColor: val == "حاضر"
-                                              ? Colors.green
-                                              : Colors.redAccent,
-                                          behavior: SnackBarBehavior.floating,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "عذراً، حدث خطأ أثناء التحديث",
-                                          ),
-                                        ),
-                                      );
+                                    if (attSnap.connectionState ==
+                                        ConnectionState.waiting) {
+                                      currentStatus = "جارٍ التحميل...";
+                                    } else if (attSnap.hasData &&
+                                        attSnap.data!.exists) {
+                                      final attData = attSnap.data!.data()
+                                          as Map<String, dynamic>;
+                                      currentStatus =
+                                          (attData['attendanceStatus'] ??
+                                                  "غائب")
+                                              .toString();
                                     }
+
+                                    return AttendanceStatusPill(
+                                      status: currentStatus,
+                                    );
                                   },
                                 ),
 
@@ -430,123 +249,57 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
   }
 }
 
-/* -------------------- Sub-Widgets remain as they were -------------------- */
+/* -------------------- Attendance Display Only -------------------- */
 
-class FigmaAttendanceBar extends StatelessWidget {
-  final String attendance;
-  final ValueChanged<String> onChanged;
-  const FigmaAttendanceBar({
-    super.key,
-    required this.attendance,
-    required this.onChanged,
-  });
-
-  Map<String, String> get _getHijriDetails {
-    var today = HijriCalendar.now();
-    List<String> monthsAr = [
-      "محرم",
-      "صفر",
-      "ربيع الأول",
-      "ربيع الآخر",
-      "جمادى الأولى",
-      "جمادى الآخرة",
-      "رجب",
-      "شعبان",
-      "رمضان",
-      "شوال",
-      "ذو القعدة",
-      "ذو الحجة",
-    ];
-    return {
-      'dayNumber': today.hDay.toString(),
-      'monthName': monthsAr[today.hMonth - 1],
-      'dayName': DateFormat('EEEE', 'ar').format(DateTime.now()),
-    };
-  }
+class AttendanceStatusPill extends StatelessWidget {
+  final String status;
+  const AttendanceStatusPill({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
-    final dateInfo = _getHijriDetails;
+    final s = status.trim();
+
+    final bool isPresent = s == "حاضر";
+    final bool isAbsent = s == "غائب";
+
+    final Color bg = isPresent
+        ? const Color(0xFFB7E4C7)
+        : isAbsent
+            ? const Color(0xFFF3B7B7)
+            : const Color(0xFFE5E7EB);
+
     return Container(
-      height: 85,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF8A95A5),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(
-        textDirection: TextDirection.rtl,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                dateInfo['dayNumber']!,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0B1220),
-                  height: 1.0,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "${dateInfo['monthName']} ${dateInfo['dayName']}",
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0B1220),
-                ),
-              ),
-            ],
-          ),
-          _RightPillDropdown(value: attendance, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _RightPillDropdown extends StatelessWidget {
-  final String value;
-  final ValueChanged<String> onChanged;
-  const _RightPillDropdown({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFC78484),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          icon: const Icon(
-            Icons.keyboard_arrow_down,
-            size: 20,
-            color: Color(0xFF0B1220),
-          ),
-          items: const [
-            DropdownMenuItem(value: "غائب", child: Text("غائب")),
-            DropdownMenuItem(value: "حاضر", child: Text("حاضر")),
+      alignment: Alignment.center,
+      child: Container(
+        height: 44,
+        width: 220,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 6,
+              offset: Offset(0, 3),
+            ),
           ],
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          status,
           style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 14,
             color: Color(0xFF0B1220),
-            fontWeight: FontWeight.bold,
           ),
         ),
       ),
     );
   }
 }
+
+/* -------------------- Sub-Widgets remain as they were -------------------- */
 
 class _TopHeader extends StatelessWidget {
   final String title;
