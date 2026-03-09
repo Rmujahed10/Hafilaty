@@ -145,3 +145,18 @@ def on_student_deleted(event):
 def on_fleet_changed(event):
     school_id = event.data.after.id
     reoptimize_school_routes(school_id)
+
+# When a student's location is edited (Changes in Students collection)
+@firestore_fn.on_document_updated(document="Students/{studentId}")
+def on_student_location_updated(event):
+    before_data = event.data.before.to_dict()
+    after_data = event.data.after.to_dict()
+    
+    # Check if the location actually changed to avoid unnecessary AI runs
+    if (before_data.get("Latitude") != after_data.get("Latitude") or 
+        before_data.get("Longitude") != after_data.get("Longitude")):
+        
+        school_id = after_data.get("SchoolID")
+        if school_id:
+            print(f"Student {event.params['studentId']} moved. Re-optimizing routes for school {school_id}...")
+            reoptimize_school_routes(school_id)
