@@ -120,7 +120,6 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   // --- Logic Handlers ---
 
   Future<void> _handleAccept(String requestId, Map<String, dynamic> data) async {
-    // Check if location data exists before proceeding
     if (data['lat'] == null || data['lng'] == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("خطأ: لم يتم تحديد موقع الطالب من قبل ولي الأمر"))
@@ -129,30 +128,30 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
     }
 
     try {
-      // Generate a semi-random unique ID for the new student
-      String newStudentId = "STU${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
+      // SUCCESSFUL SYNC LOGIC:
+      // We use 'requestId' (The National ID) as the Document ID for the Students collection.
+      // This ensures doc IDs match across both collections.
+      String nationalId = requestId; 
 
-      // Transfer data to 'Students' collection for Clustering Algorithm
-      await FirebaseFirestore.instance.collection('Students').doc(newStudentId).set({
-        'StudentID': newStudentId,
+      await FirebaseFirestore.instance.collection('Students').doc(nationalId).set({
+        'StudentID': nationalId,      // No longer "STU###", matches Doc ID
         'StudentName': data['name_en'],
         'StudentName_ar': data['name_ar'],
-        'IDNumber': data['IDNumber'],
+        'IDNumber': nationalId,       // Explicit field for your clustering script
         'parentPhone': data['parentPhone'],
         'secondPhone': data['secondPhone'] ?? '',
         'SchoolID': data['schoolId'], 
         'SchoolName': data['SchoolName'],
         'Grade': data['Grade'],
-        // REAL DATA CAPTURED FROM MAP PICKER:
         'Latitude': data['lat'], 
         'Longitude': data['lng'], 
-        'BusID': "Unassigned", // Placeholder until clustering runs
+        'BusID': "Unassigned", 
         'status': 'active',
         'joinedAt': FieldValue.serverTimestamp(),
       });
 
-      // Update the original request status
-      await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
+      // Update the request status in StudentRequests
+      await FirebaseFirestore.instance.collection('StudentRequests').doc(nationalId).update({
         'status': 'approved',
       }); 
 
@@ -207,7 +206,7 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   }
 }
 
-/* -------------------- Custom UI Components -------------------- */
+/* -------------------- Custom UI Components (unchanged) -------------------- */
 
 class _RequestCard extends StatelessWidget {
   final String requestId;
