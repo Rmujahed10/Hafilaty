@@ -20,6 +20,10 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   String? currentSchoolId;
   bool isLoading = true;
 
+  // --- Search State ---
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,8 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
                     : SingleChildScrollView(
                         child: Column(
                           children: [
+                            const SizedBox(height: 15),
+                            _buildSearchBar(),
                             const SizedBox(height: 10),
                             _MainCardContainer(
                               children: [
@@ -74,8 +80,47 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
                         ),
                       ),
               ),
-              _buildBottomNav(context), // ✅ Standardized Labeled Toolbar
+              _buildBottomNav(context),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value.toLowerCase();
+            });
+          },
+          decoration: InputDecoration(
+            hintText: 'البحث عن اسم الطالب...',
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            prefixIcon: const Icon(Icons.search, color: _kHeaderBlue),
+            suffixIcon: _searchQuery.isNotEmpty 
+                ? IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = "");
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 15),
           ),
         ),
       ),
@@ -114,15 +159,35 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
         }
 
         final students = snapshot.data?.docs ?? [];
-        if (students.isEmpty) {
-          return const Center(child: Padding(
-            padding: EdgeInsets.only(top: 40),
-            child: Text('لا يوجد طلاب حالياً', style: TextStyle(color: Colors.grey)),
-          ));
+
+        // ✅ FIXED: Added null-checks to prevent the TypeError
+        final filteredStudents = students.where((doc) {
+          final data = doc.data() as Map<String, dynamic>?; // Cast as nullable map
+          if (data == null) return false;
+
+          final nameAr = (data['StudentName_ar'] ?? '').toString().toLowerCase();
+          final nameEn = (data['StudentName'] ?? '').toString().toLowerCase();
+          
+          return nameAr.contains(_searchQuery) || nameEn.contains(_searchQuery);
+        }).toList();
+
+        if (filteredStudents.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: Column(
+                children: [
+                  Icon(Icons.search_off_rounded, size: 50, color: Colors.grey.shade300),
+                  const SizedBox(height: 10),
+                  const Text('لا يوجد نتائج مطابقة للبحث', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          );
         }
 
         return Column(
-          children: students.map((doc) {
+          children: filteredStudents.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return _StudentRowItem(
               name: (data['StudentName_ar'] ?? data['StudentName'] ?? 'اسم غير متوفر').toString(),
@@ -141,7 +206,6 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     );
   }
 
-  // ✅ Standardized Bottom Navigation with Titles
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -157,7 +221,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
         unselectedItemColor: Colors.grey.shade600,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
         unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-        currentIndex: 0, // Home is active
+        currentIndex: 0,
         onTap: (index) {
           if (index == 1) {
             Navigator.pushReplacementNamed(context, '/role_home');
@@ -178,7 +242,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   }
 }
 
-/* -------------------- Custom UI Components -------------------- */
+/* --- Components remain unchanged below --- */
 
 class _TopHeader extends StatelessWidget {
   final String title;

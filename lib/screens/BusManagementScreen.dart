@@ -12,13 +12,12 @@ class BusManagementScreen extends StatefulWidget {
 }
 
 class _BusManagementScreenState extends State<BusManagementScreen> {
-  // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
-// ✅ Your original olive green
 
   String? currentSchoolId;
   bool isLoading = true;
+
 
   @override
   void initState() {
@@ -44,6 +43,43 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     }
   }
 
+  // ✅ INCREMENT triggers your AI clustering
+  Future<void> _updateBusCount(int change) async {
+    if (currentSchoolId == null) return;
+
+    try {
+      final schoolRef = FirebaseFirestore.instance.collection('Schools').doc(currentSchoolId!);
+      
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(schoolRef);
+        if (!snapshot.exists) return;
+
+        int currentBusCount = snapshot.get('BusCount') ?? 1;
+        int newCount = currentBusCount + change;
+
+        if (newCount < 1) return; // Prevent 0 buses
+
+        transaction.update(schoolRef, {
+          'BusCount': newCount,
+          'LastUpdateAction': change > 0 ? "ADD" : "DELETE",
+        });
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(change > 0 
+              ? "جاري إضافة حافلة وإعادة توزيع الطلاب..." 
+              : "جاري حذف حافلة وإعادة توزيع الطلاب..."),
+            backgroundColor: _kHeaderBlue,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error updating fleet: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -60,9 +96,10 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
               Expanded(
                 child: isLoading 
                     ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
-                    : _buildBusList(), // ✅ List directly here to keep individual cards
+                    : _buildBusList(),
               ),
-              _buildBottomNav(context), // ✅ Standardized Labeled Toolbar
+              _buildActionButtons(), // ✅ Buttons added above the toolbar
+              _buildBottomNav(context),
             ],
           ),
         ),
@@ -70,9 +107,48 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     );
   }
 
+  // ✅ New widget for Add/Delete buttons
+  Widget _buildActionButtons() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE0E0E0), width: 1)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _updateBusCount(1),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text("إضافة حافلة", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6A994E),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _updateBusCount(-1),
+              icon: const Icon(Icons.remove, color: Colors.white),
+              label: const Text("حذف حافلة", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD64545),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBusList() {
     if (currentSchoolId == null) return const Center(child: Text("خطأ في تحميل البيانات"));
-    
     int schoolIdInt = int.parse(currentSchoolId!);
 
     return StreamBuilder<QuerySnapshot>(
@@ -96,22 +172,12 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
           itemCount: buses.length,
           itemBuilder: (context, index) {
             final data = buses[index].data() as Map<String, dynamic>;
-            final int busNumber = data['BusNumber'] ?? 0;
-            final int totalStudents = data['TotalStudents'] ?? 0;
-            const int capacity = 50;
-            final bool isFull = totalStudents >= capacity;
-
             return _BusCardItem(
-              busNumber: busNumber,
-              totalStudents: totalStudents,
-              capacity: capacity,
-              isFull: isFull,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FleetManagementScreen()),
-                );
-              },
+              busNumber: data['BusNumber'] ?? 0,
+              totalStudents: data['TotalStudents'] ?? 0,
+              capacity: 50,
+              isFull: (data['TotalStudents'] ?? 0) >= 50,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetManagementScreen())),
             );
           },
         );
@@ -119,7 +185,6 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     );
   }
 
-  // ✅ Standardized Bottom Navigation with Labels
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -137,24 +202,18 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
         unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
         currentIndex: 0,
         onTap: (index) {
-          if (index == 1) {
-            Navigator.pushReplacementNamed(context, '/role_home');
-          }
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
         },
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded, size: 28),
-            label: 'الرئيسية',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded, size: 28),
-            label: 'الملف الشخصي',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
         ],
       ),
     );
   }
 }
+
+/* --- Components _TopHeader and _BusCardItem remain the same as previous response --- */
 
 /* -------------------- Custom UI Components -------------------- */
 
@@ -205,7 +264,7 @@ class _BusCardItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFC8D8A4), // ✅ Restored original olive green
+        color: const Color(0xFFC8D8A4), 
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
