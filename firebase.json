@@ -39,18 +39,18 @@
     }
   },
   "functions": [
+    
     {
-      "source": "functions",
-      "codebase": "default",
+      "source": "notifications",
+      "codebase": "notifications",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
-        "venv",
+        "node_modules",
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"
-      ],
-      "runtime": "python313"
+      ]
     }
   ]
 }

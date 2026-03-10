@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart'; // استيراد المكتبة
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🔔 إشعارات
+import 'package:easy_localization/easy_localization.dart';
 import 'firebase_options.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -18,20 +19,52 @@ import 'screens/RegistrationRequests.dart';
 import 'screens/ManageChildScreen.dart';
 import 'screens/editDeleteChild.dart';
 
+/// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print("Background message received: ${message.messageId}");
+}
+
+/// 🔔 طلب إذن الإشعارات
+Future<void> requestNotificationPermission() async {
+  FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+  NotificationSettings settings = await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    print("User granted notification permission");
+  } else {
+    print("User denied notification permission");
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة فيربايس
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // تهيئة مكتبة الترجمة
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await requestNotificationPermission();
+
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    debugPrint("Foreground notification title: ${message.notification?.title}");
+    debugPrint("Foreground notification body: ${message.notification?.body}");
+  });
+
   await EasyLocalization.ensureInitialized();
   await initializeDateFormatting('ar', null);
 
   runApp(
     EasyLocalization(
       supportedLocales: const [Locale('ar'), Locale('en')],
-      path: 'assets/translations', // تأكد من إنشاء المجلد والملفات فيه
+      path: 'assets/translations',
       fallbackLocale: const Locale('ar'),
       child: const HafilatyApp(),
     ),
@@ -65,7 +98,7 @@ class SplashScreen extends StatelessWidget {
             const Icon(Icons.directions_bus, size: 80, color: Colors.white),
             const SizedBox(height: 20),
             Text(
-              'login_title'.tr(), // استخدام الترجمة حتى في السلاش
+              'login_title'.tr(),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 28,
@@ -87,13 +120,11 @@ class HafilatyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // تم حذف Directionality اليدوي هنا لأنه يسبب الخطأ
-    // MaterialApp ستقوم بالمهمة بناءً على لغة الـ context
     return MaterialApp(
       title: 'Hafilaty',
       debugShowCheckedModeBanner: false,
 
-      // إعدادات الترجمة والاتجاه التلقائي
+      // إعدادات الترجمة
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,
@@ -104,7 +135,7 @@ class HafilatyApp extends StatelessWidget {
           secondary: const Color(0xFF6A994E),
         ),
         fontFamily: context.locale.languageCode == 'ar'
-            ? 'HafilatyArabic' // اسم الخط العربي في pubspec
+            ? 'HafilatyArabic'
             : 'Roboto',
       ),
 
@@ -117,7 +148,8 @@ class HafilatyApp extends StatelessWidget {
           if (snapshot.hasData) {
             return snapshot.data!;
           }
-          return const Scaffold(body: Center(child: Text("Error loading app")));
+          return const Scaffold(
+              body: Center(child: Text("Error loading app")));
         },
       ),
 
@@ -133,7 +165,6 @@ class HafilatyApp extends StatelessWidget {
         '/registration_requests': (context) => const RegistrationRequests(),
         '/manage_child': (_) => const ManageChildScreen(),
         "/editDeleteChild": (context) => const EditDeleteChildScreen(),
-        
       },
     );
   }

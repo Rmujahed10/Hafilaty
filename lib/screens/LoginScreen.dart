@@ -1,9 +1,11 @@
 // ignore_for_file: unused_element, file_names
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:easy_localization/easy_localization.dart'; // 1. استيراد المكتبة
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'ChooseRoleScreen.dart';
 
@@ -35,6 +37,31 @@ class _LoginScreenState extends State<LoginScreen> {
     return '$cleanedPhone@hafilatyapp.com';
   }
 
+  Future<void> _saveFCMToken(String phone) async {
+    try {
+      String? token;
+
+      if (kIsWeb) {
+        token = await FirebaseMessaging.instance.getToken(
+          vapidKey:
+              'BKCFfRwDB7R0WllNIhWMMSg3pPizOkog7c-gTnThRLCZc9J9p09HcEKxLnp3yT4Pvg9yJ_lljmT5m_cUgk4D8s8',
+        );
+      } else {
+        token = await FirebaseMessaging.instance.getToken();
+      }
+
+      if (token != null && token.trim().isNotEmpty) {
+        await FirebaseFirestore.instance.collection('users').doc(phone).update({
+          'fcmToken': token,
+        });
+
+        debugPrint("FCM token saved successfully");
+      }
+    } catch (e) {
+      debugPrint("Error saving FCM token: $e");
+    }
+  }
+
   Future<void> _checkRoleAndNavigate(String cleanedPhone) async {
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance
@@ -43,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
           .get();
 
       if (!doc.exists) {
-        _showError('error_user_not_found'.tr()); // ترجمة الخطأ
+        _showError('error_user_not_found'.tr());
         await FirebaseAuth.instance.signOut();
         return;
       }
@@ -51,11 +78,9 @@ class _LoginScreenState extends State<LoginScreen> {
       String role = doc.get('role') ?? 'user';
       if (role == 'admin') {
         Navigator.of(context).pushReplacementNamed('/AdminHome');
-      } 
-      else if (role == 'parent') {
+      } else if (role == 'parent') {
         Navigator.of(context).pushReplacementNamed('/parent_home');
-      }
-      else {
+      } else {
         Navigator.of(context).pushReplacementNamed('/role_home');
       }
     } catch (e) {
@@ -80,13 +105,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (credential.user != null) {
+        await _saveFCMToken(cleanedPhone);
         await _checkRoleAndNavigate(cleanedPhone);
       }
     } on FirebaseAuthException {
       String message = 'error_wntials'.tr();
       _showError(message);
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -118,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 40.0),
                   child: Text(
-                    'login_title'.tr(), // استخدام الترجمة
+                    'login_title'.tr(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -137,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     );
                   },
                   child: Text(
-                    'register_new_account'.tr(), // استخدام الترجمة
+                    'register_new_account'.tr(),
                     style: const TextStyle(color: _kDarkBlue),
                   ),
                 ),
@@ -166,9 +194,8 @@ class _LoginScreenState extends State<LoginScreen> {
               _phoneController,
               Icons.phone,
               TextInputType.phone,
-              validator: (value) => (value == null || value.isEmpty)
-                  ? 'phone_required'.tr()
-                  : null,
+              validator: (value) =>
+                  (value == null || value.isEmpty) ? 'phone_required'.tr() : null,
             ),
             const SizedBox(height: 20),
             _buildInputField(
@@ -193,7 +220,6 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 10),
             _buildLoginButton(),
             const SizedBox(height: 20),
-            // زر تبديل اللغة المطور
             InkWell(
               onTap: () {
                 if (context.locale.languageCode == 'ar') {
@@ -226,8 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
     String? Function(String?)? validator,
   }) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start, // سيضبط نفسه حسب اتجاه اللغة
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
