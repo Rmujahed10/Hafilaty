@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>https</string>
+			<string>http</string>
+			<string>googlechromes</string>
+			<string>comgooglemaps</string>
+		</array>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Hafilaty needs your location to ensure the bus picks up the student at the correct house.</string>	
 		<key>CFBundleDevelopmentRegion</key>
