@@ -43,11 +43,34 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     }
   }
 
-  // ✅ Core Logic: Handles Add/Delete with Capacity Safety
+  // ✅ Core Logic: Handles Add/Delete with Capacity & Driver Safety
   Future<void> _handleFleetUpdate(int change) async {
     if (currentSchoolId == null) return;
 
     try {
+      // ✅ Validate driver availability BEFORE adding a bus
+      if (change > 0) {
+        // REMOVED schoolId filter. Now fetches all drivers.
+        final driversQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('role', isEqualTo: 'driver')
+            .get();
+
+        // Filter locally to find drivers who are NOT assigned to a bus yet
+        final availableDrivers = driversQuery.docs.where((doc) {
+          final data = doc.data();
+          return !data.containsKey('AssignedBusID') || 
+                 data['AssignedBusID'] == null || 
+                 data['AssignedBusID'] == '';
+        }).toList();
+
+        // Block the addition if no drivers are available
+        if (availableDrivers.isEmpty) {
+          _showWarning("لا يمكن إضافة حافلة جديدة: لا يوجد سائقون متاحون (غير معينين). الرجاء تسجيل حساب سائق جديد أولاً.");
+          return; // Abort so the Cloud Function is never triggered
+        }
+      }
+
       final schoolRef = FirebaseFirestore.instance.collection('Schools').doc(currentSchoolId!);
       final studentsQuery = await FirebaseFirestore.instance
           .collection('Students')
@@ -75,6 +98,7 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
           }
         }
 
+        // Trigger AI Cloud Function
         transaction.update(schoolRef, {
           'BusCount': newCount,
           'LastAction': change > 0 ? "ADD" : "DELETE",
@@ -85,11 +109,132 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     }
   }
 
+  // ✅ Driver Assignment Logic
+  Future<void> _assignDriverToBus(String busDocId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // REMOVED schoolId filter
+      final driversQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'driver')
+          .get();
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      // Filter to ONLY show unassigned drivers
+      final availableDrivers = driversQuery.docs.where((doc) {
+        final data = doc.data();
+        return !data.containsKey('AssignedBusID') || 
+               data['AssignedBusID'] == null || 
+               data['AssignedBusID'] == '';
+      }).toList();
+
+      if (availableDrivers.isEmpty) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("لا يوجد سائقين متاحين", textAlign: TextAlign.right),
+            content: const Text(
+                "جميع السائقين المسجلين تم تعيينهم لحافلات أخرى، أو لا يوجد أي سائق مسجل في النظام. الرجاء تسجيل حساب سائق جديد.",
+                textAlign: TextAlign.right),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("حسناً"),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context, // This is your main screen context
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetContext) { // ✅ Renamed to sheetContext
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("اختر سائقاً للحافلة", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: availableDrivers.length,
+                      itemBuilder: (itemContext, index) { // ✅ Renamed to itemContext
+                        final driverDoc = availableDrivers[index];
+                        final data = driverDoc.data();
+                        
+                        final firstName = data.containsKey('firstName') ? data['firstName'] : '';
+                        final lastName = data.containsKey('lastName') ? data['lastName'] : '';
+                        final driverName = "$firstName $lastName".trim();
+                        final displayName = driverName.isEmpty ? 'سائق ${index + 1}' : driverName;
+                        
+                        final driverPhone = data.containsKey('phone') ? data['phone'] : driverDoc.id;
+                        final driverId = driverDoc.id; 
+
+                        return ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.person)),
+                          title: Text(displayName),
+                          subtitle: Text(driverPhone),
+                          trailing: const Icon(Icons.check_circle_outline, color: Colors.green),
+                          onTap: () async {
+                            // ✅ 1. Pop using the sheet's specific context
+                            Navigator.pop(sheetContext); 
+                            
+                            // 2. Do the background database work
+                            WriteBatch batch = FirebaseFirestore.instance.batch();
+                            
+                            batch.update(FirebaseFirestore.instance.collection('Buses').doc(busDocId), {
+                              'DriverID': driverPhone, 
+                              'DriverName': displayName,
+                            });
+
+                            batch.update(FirebaseFirestore.instance.collection('users').doc(driverId), {
+                              'AssignedBusID': busDocId,
+                            });
+
+                            await batch.commit();
+
+                            // ✅ 3. Safely use the MAIN screen's context for the SnackBar
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('تم تعيين السائق بنجاح', textAlign: TextAlign.right)),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint("Error fetching drivers: $e");
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
   void _showWarning(String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("تنبيه السعة", textAlign: TextAlign.right),
+        title: const Text("تنبيه", textAlign: TextAlign.right),
         content: Text(message, textAlign: TextAlign.right),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("موافق")),
@@ -134,7 +279,7 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
                     ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
                     : _buildBusList(),
               ),
-              _buildActionRow(), // ✅ Above bottom nav
+              _buildActionRow(), 
               _buildBottomNav(context),
             ],
           ),
@@ -197,11 +342,15 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
           itemCount: buses.length,
           itemBuilder: (context, index) {
             final data = buses[index].data() as Map<String, dynamic>;
+            final busDocId = buses[index].id; // We need the document ID to assign the driver
+            
             return _BusCardItem(
               busNumber: data['BusNumber'] ?? 0,
               totalStudents: data['TotalStudents'] ?? 0,
               capacity: _kBusCapacity,
               isFull: (data['TotalStudents'] ?? 0) >= _kBusCapacity,
+              driverName: data['DriverName'], // ✅ Check if a driver is assigned
+              onAssignDriver: () => _assignDriverToBus(busDocId), // ✅ Trigger assignment
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetManagementScreen())),
             );
           },
@@ -268,14 +417,18 @@ class _BusCardItem extends StatelessWidget {
   final int totalStudents;
   final int capacity;
   final bool isFull;
+  final String? driverName;
   final VoidCallback onTap;
+  final VoidCallback onAssignDriver;
 
   const _BusCardItem({
     required this.busNumber,
     required this.totalStudents,
     required this.capacity,
     required this.isFull,
+    this.driverName,
     required this.onTap,
+    required this.onAssignDriver,
   });
 
   @override
@@ -300,13 +453,33 @@ class _BusCardItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: isFull ? const Color(0xFFD64545) : const Color(0xFF6A994E),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(isFull ? "ممتلئة" : "نشطة", style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isFull ? const Color(0xFFD64545) : const Color(0xFF6A994E),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(isFull ? "ممتلئة" : "نشطة", style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+                // ✅ Driver Status Badge
+                GestureDetector(
+                  onTap: onAssignDriver,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: driverName != null ? Colors.blue.shade700 : Colors.orange.shade700,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      driverName != null ? "السائق: $driverName" : "لم يتم تعيين سائق", 
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             Row(
