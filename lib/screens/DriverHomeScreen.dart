@@ -11,7 +11,6 @@ class DriverHomeScreen extends StatefulWidget {
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   // 🎨 نفس ألوانك
-  static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
 
   final user = FirebaseAuth.instance.currentUser;

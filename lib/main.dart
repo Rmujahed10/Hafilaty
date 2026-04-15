@@ -18,6 +18,7 @@ import 'screens/ParentHomeScreen.dart';
 import 'screens/RegistrationRequests.dart';
 import 'screens/ManageChildScreen.dart';
 import 'screens/editDeleteChild.dart';
+import 'screens/DriverHomeScreen.dart';
 
 /// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -164,7 +165,8 @@ class HafilatyApp extends StatelessWidget {
         '/parent_home': (context) => const ParentHomeScreen(),
         '/registration_requests': (context) => const RegistrationRequests(),
         '/manage_child': (_) => const ManageChildScreen(),
-        "/editDeleteChild": (context) => const EditDeleteChildScreen(),
+        '/editDeleteChild': (context) => const EditDeleteChildScreen(),
+        '/driver_home': (context) => const DriverHomeScreen(),
       },
     );
   }

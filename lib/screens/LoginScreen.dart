@@ -80,7 +80,10 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.of(context).pushReplacementNamed('/AdminHome');
       } else if (role == 'parent') {
         Navigator.of(context).pushReplacementNamed('/parent_home');
-      } else {
+       } else if (role == 'driver') {
+        Navigator.of(context).pushReplacementNamed('/driver_home');
+      }
+      else {
         Navigator.of(context).pushReplacementNamed('/role_home');
       }
     } catch (e) {
