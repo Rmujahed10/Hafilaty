@@ -159,15 +159,6 @@ class _AdminHomeState extends State<AdminHome> {
                                         '/students_management',
                                       ),
                                     ),
-
-                                    _ActionTile(
-                                      title: "إدارة الرحلات 🚍",
-                                      icon: Icons.route,
-                                      onTap: () => Navigator.pushNamed(
-                                        context,
-                                        '/add_trip',
-                                      ),
-                                    ),
                                   ],
                                 ),
 
