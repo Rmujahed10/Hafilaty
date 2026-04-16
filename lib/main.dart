@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // 🔔 إشعارات
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'firebase_options.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -19,6 +20,7 @@ import 'screens/RegistrationRequests.dart';
 import 'screens/ManageChildScreen.dart';
 import 'screens/editDeleteChild.dart';
 import 'screens/DriverHomeScreen.dart';
+import 'screens/TripMapScreen.dart';
 
 /// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -167,6 +169,7 @@ class HafilatyApp extends StatelessWidget {
         '/manage_child': (_) => const ManageChildScreen(),
         '/editDeleteChild': (context) => const EditDeleteChildScreen(),
         '/driver_home': (context) => const DriverHomeScreen(),
+        '/trip_map': (context) => const TripMapScreen(),
       },
     );
   }
