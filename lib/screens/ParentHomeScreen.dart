@@ -39,12 +39,17 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     final currentHour = now.hour;
 
     // Determine Target Date (7 PM or later marks for tomorrow)
-    DateTime targetDate = (currentHour >= 19) ? now.add(const Duration(days: 1)) : now;
-    String formattedDate = "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
+    DateTime targetDate = (currentHour >= 19)
+        ? now.add(const Duration(days: 1))
+        : now;
+    String formattedDate =
+        "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
 
     WriteBatch batch = FirebaseFirestore.instance.batch();
 
-    DocumentReference studentRef = FirebaseFirestore.instance.collection('Students').doc(studentId);
+    DocumentReference studentRef = FirebaseFirestore.instance
+        .collection('Students')
+        .doc(studentId);
     DocumentReference attendanceRef = FirebaseFirestore.instance
         .collection('Attendance')
         .doc(formattedDate)
@@ -70,8 +75,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         var hDate = HijriCalendar.fromDate(targetDate);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تم التحديث ليوم ${hDate.hDay} ${hDate.longMonthName}'),
-            backgroundColor: newStatus == 'حاضر' ? Colors.green : Colors.redAccent,
+            content: Text(
+              'تم التحديث ليوم ${hDate.hDay} ${hDate.longMonthName}',
+            ),
+            backgroundColor: newStatus == 'حاضر'
+                ? Colors.green
+                : Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -132,8 +141,25 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           String name = (snapshot.hasData && snapshot.data!.exists)
               ? snapshot.data!.get('firstName') ?? "مستخدم"
               : "...";
-          return Text('صباح الخير، $name',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _kTextMain));
+
+          // ⏰ تحديد الوقت
+          final hour = DateTime.now().hour;
+
+          String greeting;
+          if (hour < 12) {
+            greeting = "صباح الخير";
+          } else {
+            greeting = "مساء الخير";
+          }
+
+          return Text(
+            '$greeting، $name',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: _kTextMain,
+            ),
+          );
         },
       ),
     );
@@ -145,8 +171,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       children: [
         const _SectionHeader(title: 'الأبناء'),
         IconButton(
-          icon: const Icon(Icons.add_circle, color: Color(0xFF6A994E), size: 30),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterStudentScreen())),
+          icon: const Icon(
+            Icons.add_circle,
+            color: Color(0xFF6A994E),
+            size: 30,
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RegisterStudentScreen()),
+          ),
         ),
       ],
     );
@@ -159,14 +192,23 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           .where('parentPhone', isEqualTo: _phoneDocId)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
         var students = snapshot.data?.docs ?? [];
-        if (students.isEmpty) return _buildEmptyState("لا يوجد طلبات تسجيل حالياً");
-        
+        if (students.isEmpty)
+          return _buildEmptyState("لا يوجد طلبات تسجيل حالياً");
+
         return Column(
           children: students.map((doc) {
             var data = doc.data() as Map<String, dynamic>;
-            return _buildInteractiveStudentCard(context, doc.id, data['name_ar'] ?? '', data['Grade'] ?? '', data['SchoolName'] ?? '', data['status'] ?? 'pending');
+            return _buildInteractiveStudentCard(
+              context,
+              doc.id,
+              data['name_ar'] ?? '',
+              data['Grade'] ?? '',
+              data['SchoolName'] ?? '',
+              data['status'] ?? 'pending',
+            );
           }).toList(),
         );
       },
@@ -178,7 +220,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       padding: EdgeInsets.only(top: 5, bottom: 15),
       child: Text(
         'يرجى تأكيد حضور الطالب للباص ليوم الغد قبل الساعة ٥:٠٠ صباحاً لضمان وصول الباص في الموعد الملتزم به',
-        style: TextStyle(fontSize: 11, color: Colors.redAccent, height: 1.4, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.redAccent,
+          height: 1.4,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -192,9 +239,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) return _buildEmptyState("لا يوجد أبناء مسجلين لعرض الحضور");
+        if (docs.isEmpty)
+          return _buildEmptyState("لا يوجد أبناء مسجلين لعرض الحضور");
         return Column(
-          children: docs.map((doc) => _buildAttendanceCard(context, doc.id, doc.data())).toList(),
+          children: docs
+              .map((doc) => _buildAttendanceCard(context, doc.id, doc.data()))
+              .toList(),
         );
       },
     );
@@ -203,51 +253,99 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   Widget _buildEmptyState(String msg) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Text(msg, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+      child: Text(
+        msg,
+        style: const TextStyle(color: Colors.grey, fontSize: 13),
+      ),
     );
   }
 
-  Widget _buildInteractiveStudentCard(BuildContext context, String id, String name, String grade, String school, String status) {
+  Widget _buildInteractiveStudentCard(
+    BuildContext context,
+    String id,
+    String name,
+    String grade,
+    String school,
+    String status,
+  ) {
     bool isApproved = status == 'approved';
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
           radius: 25,
-          backgroundColor: isApproved ? const Color(0xFFFFD166) : Colors.grey.shade300,
+          backgroundColor: isApproved
+              ? const Color(0xFFFFD166)
+              : Colors.grey.shade300,
           child: const Icon(Icons.person, color: Colors.white),
         ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _kHeaderBlue)),
-        subtitle: Text('المدرسة: $school\nالصف: $grade', style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+        title: Text(
+          name,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+            color: _kHeaderBlue,
+          ),
+        ),
+        subtitle: Text(
+          'المدرسة: $school\nالصف: $grade',
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         trailing: _buildStatusBadge(status),
       ),
     );
   }
 
   Widget _buildStatusBadge(String status) {
-    Color color = status == 'approved' ? Colors.green : (status == 'refused' ? Colors.red : Colors.orange);
-    String text = status == 'approved' ? "مسجل" : (status == 'refused' ? "مرفوض" : "قيد المعالجة");
+    Color color = status == 'approved'
+        ? Colors.green
+        : (status == 'refused' ? Colors.red : Colors.orange);
+    String text = status == 'approved'
+        ? "مسجل"
+        : (status == 'refused' ? "مرفوض" : "قيد المعالجة");
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1), 
-        borderRadius: BorderRadius.circular(8), 
-        border: Border.all(color: color, width: 0.5)
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color, width: 0.5),
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
-  Widget _buildAttendanceCard(BuildContext context, String studentId, Map<String, dynamic> data) {
+  Widget _buildAttendanceCard(
+    BuildContext context,
+    String studentId,
+    Map<String, dynamic> data,
+  ) {
     String currentStatus = data['attendanceStatus'] ?? 'غائب';
-    String name = (data['StudentName_ar'] ?? data['StudentName'] ?? '').toString();
-    
+    String name = (data['StudentName_ar'] ?? data['StudentName'] ?? '')
+        .toString();
+
     // Time & Date Logic
     final now = DateTime.now();
     int hour = now.hour;
@@ -266,19 +364,37 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         borderRadius: BorderRadius.circular(15),
       ),
       child: InkWell(
-        onTap: () => Navigator.pushNamed(context, '/manage_child', arguments: {'StudentID': studentId}),
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/manage_child',
+          arguments: {'StudentID': studentId},
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           child: Row(
             children: [
-              const CircleAvatar(radius: 18, backgroundColor: Colors.white, child: Icon(Icons.person, size: 18, color: Colors.grey)),
+              const CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 18, color: Colors.grey),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.w900, color: _kHeaderBlue, fontSize: 14)),
-                    const Text("اضغط لعرض الملف الشخصي", style: TextStyle(fontSize: 10, color: Colors.black45)),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: _kHeaderBlue,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const Text(
+                      "اضغط لعرض الملف الشخصي",
+                      style: TextStyle(fontSize: 10, color: Colors.black45),
+                    ),
                   ],
                 ),
               ),
@@ -287,14 +403,22 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 children: [
                   Text(
                     "ليوم: $hijriLabel",
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isTimeExpired ? Colors.grey : _kHeaderBlue),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isTimeExpired ? Colors.grey : _kHeaderBlue,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Container(
                     height: 35,
                     width: 95,
                     decoration: BoxDecoration(
-                      color: isTimeExpired ? Colors.grey.shade400 : (currentStatus == 'غائب' ? Colors.redAccent : Colors.green),
+                      color: isTimeExpired
+                          ? Colors.grey.shade400
+                          : (currentStatus == 'غائب'
+                                ? Colors.redAccent
+                                : Colors.green),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -304,21 +428,57 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                         alignment: Alignment.center,
                         isExpanded: true,
                         icon: const SizedBox.shrink(),
-                        onChanged: isTimeExpired ? (val) {
-                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('التعديل متاح من 7:00 م حتى 5:00 ص')));
-                        } : (String? newValue) {
-                          if (newValue != null) {
-                            _handleAttendanceUpdate(studentId: studentId, newStatus: newValue, studentData: data);
-                          }
-                        },
+                        onChanged: isTimeExpired
+                            ? (val) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'التعديل متاح من 7:00 م حتى 5:00 ص',
+                                    ),
+                                  ),
+                                );
+                              }
+                            : (String? newValue) {
+                                if (newValue != null) {
+                                  _handleAttendanceUpdate(
+                                    studentId: studentId,
+                                    newStatus: newValue,
+                                    studentData: data,
+                                  );
+                                }
+                              },
                         items: ['حاضر', 'غائب'].map((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
                             alignment: Alignment.center,
-                            child: Text(value, style: TextStyle(color: isTimeExpired ? Colors.grey : (value == 'غائب' ? Colors.redAccent : Colors.green), fontWeight: FontWeight.bold, fontSize: 13)),
+                            child: Text(
+                              value,
+                              style: TextStyle(
+                                color: isTimeExpired
+                                    ? Colors.grey
+                                    : (value == 'غائب'
+                                          ? Colors.redAccent
+                                          : Colors.green),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           );
                         }).toList(),
-                        selectedItemBuilder: (context) => ['حاضر', 'غائب'].map((v) => Center(child: Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)))).toList(),
+                        selectedItemBuilder: (context) => ['حاضر', 'غائب']
+                            .map(
+                              (v) => Center(
+                                child: Text(
+                                  v,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                   ),
@@ -334,17 +494,30 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
-      decoration: BoxDecoration(color: const Color(0xFFE6E6E6), border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5))),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6E6E6),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
+      ),
       child: BottomNavigationBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
         currentIndex: 0,
-        onTap: (index) { if (index == 1) Navigator.pushReplacementNamed(context, '/role_home'); },
+        onTap: (index) {
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+        },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded, size: 28),
+            label: 'الرئيسية',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded, size: 28),
+            label: 'الملف الشخصي',
+          ),
         ],
       ),
     );
@@ -360,15 +533,28 @@ class _TopHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 85, padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
-      child: Row(children: [
-        IconButton(onPressed: onLang, icon: const Icon(Icons.language, color: Colors.white)),
-        const Spacer(),
-        Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-        const Spacer(),
-        const SizedBox(width: 48),
-      ]),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white),
+          ),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+          const SizedBox(width: 48),
+        ],
+      ),
     );
   }
 }
@@ -379,10 +565,23 @@ class _MainCardContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14), width: double.infinity,
-      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      width: double.infinity,
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
@@ -393,6 +592,16 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title});
   @override
   Widget build(BuildContext context) {
-    return Align(alignment: Alignment.centerRight, child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF98AF8D))));
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFF98AF8D),
+        ),
+      ),
+    );
   }
 }

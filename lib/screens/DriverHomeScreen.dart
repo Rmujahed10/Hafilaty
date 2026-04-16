@@ -57,7 +57,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ),
               ),
 
-              _buildBottomNav(),
+              _buildBottomNav(context),
             ],
           ),
         ),
@@ -67,11 +67,33 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   // ✅ الترحيب
   Widget _buildWelcome() {
-    return const Align(
+    return Align(
       alignment: Alignment.centerRight,
-      child: Text(
-        "صباح الخير، ساجد",
-        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+      child: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(user?.email?.split('@')[0]) // نفس طريقة البارنت
+            .snapshots(),
+        builder: (context, snapshot) {
+          String name = (snapshot.hasData && snapshot.data!.exists)
+              ? snapshot.data!.get('firstName') ?? "مستخدم"
+              : "...";
+
+          // ⏰ تحديد الوقت
+          final hour = DateTime.now().hour;
+
+          String greeting;
+          if (hour < 12) {
+            greeting = "صباح الخير";
+          } else {
+            greeting = "مساء الخير";
+          }
+
+          return Text(
+            '$greeting، $name',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          );
+        },
       ),
     );
   }
@@ -159,14 +181,35 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   // ✅ Bottom Nav
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
       ),
-      child: const Center(child: Icon(Icons.person, size: 30)),
+      child: BottomNavigationBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF0D1B36), // نفس اللون
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded, size: 28),
+            label: 'الرئيسية',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded, size: 28),
+            label: 'الملف الشخصي',
+          ),
+        ],
+      ),
     );
   }
 }
