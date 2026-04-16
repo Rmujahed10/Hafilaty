@@ -17,7 +17,7 @@ dependencies:
 
   firebase_messaging: ^14.7.10 #forscedsualnotifecation
   flutter_local_notifications: ^17.0.0
-  google_maps_flutter: ^2.11.0  # For the interactive map
+  google_maps_flutter: ^2.12.0  # For the interactive map
   geolocator: ^12.0.0          # To get the user's current GPS position
   firebase_auth: ^4.16.0 
   firebase_core: ^2.25.0
