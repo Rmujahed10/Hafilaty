@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'TripMapScreen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -10,11 +11,13 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  // 🎨 نفس ألوانك
+  // 🎨 الألوان الثابتة
+  static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
+  static const Color _kGreenAccent = Color(0xFF98AF8D);
+  static const Color _kCardBg = Color(0xFFDDE5D1);
 
   final user = FirebaseAuth.instance.currentUser;
-
   String get driverId => user?.uid ?? "";
 
   @override
@@ -26,7 +29,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // ✅ الهيدر (تم حل مشكلة null)
+              // ✅ الهيدر العلوي
               _TopHeader(title: "لوحة التحكم", onLang: () {}),
 
               Expanded(
@@ -34,20 +37,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 10),
-
                       _MainCardContainer(
                         children: [
                           _buildWelcome(),
                           const SizedBox(height: 20),
-
                           const _SectionHeader(title: "رحلاتي"),
                           const SizedBox(height: 15),
-
                           const _SectionHeader(title: "رحلة الذهاب"),
                           _buildTrips(type: "going"),
-
                           const SizedBox(height: 20),
-
                           const _SectionHeader(title: "رحلة العودة"),
                           _buildTrips(type: "returning"),
                         ],
@@ -57,6 +55,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ),
               ),
 
+              // ✅ الشريط السفلي المطلوب
               _buildBottomNav(context),
             ],
           ),
@@ -67,38 +66,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   // ✅ الترحيب
   Widget _buildWelcome() {
-    return Align(
+    return const Align(
       alignment: Alignment.centerRight,
-      child: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user?.email?.split('@')[0]) // نفس طريقة البارنت
-            .snapshots(),
-        builder: (context, snapshot) {
-          String name = (snapshot.hasData && snapshot.data!.exists)
-              ? snapshot.data!.get('firstName') ?? "مستخدم"
-              : "...";
-
-          // ⏰ تحديد الوقت
-          final hour = DateTime.now().hour;
-
-          String greeting;
-          if (hour < 12) {
-            greeting = "صباح الخير";
-          } else {
-            greeting = "مساء الخير";
-          }
-
-          return Text(
-            '$greeting، $name',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-          );
-        },
+      child: Text(
+        "صباح الخير، ساجد",
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
       ),
     );
   }
 
-  // ✅ عرض الرحلات من Firestore
+  // ✅ جلب الرحلات
   Widget _buildTrips({required String type}) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -107,37 +84,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           .where("type", isEqualTo: type)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (!snapshot.hasData)
           return const Center(child: CircularProgressIndicator());
-        }
-
         var trips = snapshot.data!.docs;
-
-        if (trips.isEmpty) {
+        if (trips.isEmpty)
           return const Padding(
             padding: EdgeInsets.all(10),
             child: Text("لا توجد رحلات"),
           );
-        }
 
-        return Column(
-          children: trips.map((trip) {
-            return _tripCard(trip);
-          }).toList(),
-        );
+        return Column(children: trips.map((trip) => _tripCard(trip)).toList());
       },
     );
   }
 
-  // ✅ تصميم الكرت (مثل الصورة)
+  // ✅ كرت الرحلة
   Widget _tripCard(QueryDocumentSnapshot trip) {
     return Container(
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFDDE5D1),
+        color: _kCardBg,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.green),
+        border: Border.all(color: Colors.green.shade300),
       ),
       child: Column(
         children: [
@@ -145,18 +114,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           _row("وقت بداية الرحلة:", trip['startTime'].toString()),
           _row("حالة الرحلة:", trip['status'].toString()),
           _row("عدد الطلاب:", trip['studentsCount'].toString()),
-
           const SizedBox(height: 10),
-
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF98AF8D),
+              backgroundColor: _kGreenAccent,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
             onPressed: () => _startTrip(trip.id),
-            child: const Text("بدء الرحلة"),
+            child: const Text(
+              "بدء الرحلة",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -168,19 +139,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [Text(title), Text(value)],
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(value),
+        ],
       ),
     );
   }
 
-  // ✅ تحديث حالة الرحلة
   void _startTrip(String tripId) {
     FirebaseFirestore.instance.collection("Trips").doc(tripId).update({
       "status": "started",
     });
   }
 
-  // ✅ Bottom Nav
+  // ✅ الـ Bottom Navigation Bar بنفس الطريقة التي طلبتِها
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -194,10 +167,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF0D1B36), // نفس اللون
-        currentIndex: 0,
+        selectedItemColor: _kHeaderBlue,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+        currentIndex: 0, // لوحة التحكم (الرئيسية) هي المفعلة هنا
         onTap: (index) {
-          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
+          if (index == 0) {
+            // الانتقال لصفحة الخريطة عند الضغط على الرئيسية
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const TripMapScreen()),
+            );
+          } else if (index == 1) {
+            // هنا يمكنك الانتقال لصفحة الملف الشخصي
+            // Navigator.pushReplacementNamed(context, '/profile');
+          }
         },
         items: const [
           BottomNavigationBarItem(
@@ -214,14 +205,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 }
 
-//////////////////////////////////////////////////////////
-// 🔹 نفس الكومبوننتس حقتك (بدون تعديل كبير)
-//////////////////////////////////////////////////////////
+// --- الكومبوننتس المساعدة ---
 
 class _TopHeader extends StatelessWidget {
   final String title;
   final VoidCallback onLang;
-
   const _TopHeader({required this.title, required this.onLang});
 
   @override
@@ -255,7 +243,6 @@ class _TopHeader extends StatelessWidget {
 
 class _MainCardContainer extends StatelessWidget {
   final List<Widget> children;
-
   const _MainCardContainer({required this.children});
 
   @override
@@ -282,7 +269,6 @@ class _MainCardContainer extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-
   const _SectionHeader({required this.title});
 
   @override
