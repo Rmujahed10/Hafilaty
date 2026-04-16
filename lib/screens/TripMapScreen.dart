@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'TripDetailsScreen.dart';
 
 class TripMapScreen extends StatefulWidget {
   const TripMapScreen({super.key});
@@ -72,7 +73,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // شريط التحديث
+          // --- بداية الجزء الثابت (غير قابل للنقر) ---
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -86,33 +87,49 @@ class _TripMapScreenState extends State<TripMapScreen> {
           ),
           const SizedBox(height: 15),
 
-          // تفاصيل الرحلة (الوقت، المحطات، المرور)
           _buildInfoRow(Icons.access_time, "الوقت المتوقع: 18 دقيقة"),
-          _buildInfoRow(Icons.location_on, "عدد التوقفات: 5"),
-          _buildInfoRow(Icons.traffic, "حالة المرور: متوسطة"),
+          _buildColoredInfoRow('assets/placeholder.png', "عدد التوقفات: 5"),
+          _buildColoredInfoRow(
+            'assets/traffic-lights.png',
+            "حالة المرور: متوسطة",
+          ),
 
+          // --- نهاية الجزء الثابت ---
           const SizedBox(height: 20),
 
-          // الأزرار الرئيسية
+          // --- بداية الأزرار (كل زر له onPressed مستقل وخاص به) ---
           _ActionButton(
             label: "تفاصيل التوقفات",
-            color: const Color.fromARGB(255, 225, 240, 111),
-            textColor: Colors.black,
+            color: const Color(0xFFFFC107),
+            textColor: Colors.white,
             onPressed: () {
-              // Navigator.push(context, MaterialPageRoute(builder: (_) => const TripDetailsScreen()));
-            },
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TripDetailsScreen(),
+                ),
+              );
+            }, // القوس هنا يغلق منطقة النقر لهذا الزر فقط
           ),
+
           const SizedBox(height: 10),
+
           _ActionButton(
             label: "بدء الرحلة",
             color: const Color(0xFF6A994E),
-            onPressed: () {},
+            onPressed: () {
+              print("تم بدء الرحلة");
+            },
           ),
+
           const SizedBox(height: 10),
+
           _ActionButton(
             label: "إنهاء الرحلة",
             color: const Color(0xFFD64545),
-            onPressed: () {},
+            onPressed: () {
+              print("تم إنهاء الرحلة");
+            },
           ),
         ],
       ),
@@ -245,4 +262,31 @@ class _ActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildColoredInfoRow(String imagePath, String text) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Image.asset(
+            imagePath,
+            width: 24,
+            height: 24,
+            // في حال لم تكن الصورة موجودة، يظهر مربع رمادي صغير بدلاً من توقف التطبيق
+            errorBuilder: (context, error, stackTrace) =>
+                Icon(Icons.image_not_supported, size: 24, color: Colors.grey),
+          ),
+          const SizedBox(width: 10),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    ),
+  );
 }
