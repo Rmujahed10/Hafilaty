@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:qr_flutter/qr_flutter.dart';
 
 class ManageChildScreen extends StatefulWidget {
   const ManageChildScreen({super.key});
@@ -93,7 +94,6 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                             ),
                             child: Column(
                               children: [
-                                // ✅❌ تم إزالة: زر حذف الحساب + زر التعديل
                                 const SizedBox(height: 6),
 
                                 // ✅ صورة ولي الأمر من users collection
@@ -116,7 +116,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
 
                                 const SizedBox(height: 16),
 
-                                // ✅✅✅ عرض حالة الحضور فقط (غير قابل للضغط)
+                                // ✅ عرض حالة الحضور
                                 StreamBuilder<DocumentSnapshot>(
                                   stream: FirebaseFirestore.instance
                                       .collection('Attendance')
@@ -146,7 +146,53 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                   },
                                 ),
 
-                                const SizedBox(height: 20),
+                                const SizedBox(height: 24),
+
+                                // --------------------------------------------------
+                                // ✅✅✅ زر لفتح الباركود كـ Pop-up
+                                // --------------------------------------------------
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => _showQrCodeDialog(context, studentId),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.qr_code_2_rounded,
+                                            color: _kHeaderBlue,
+                                            size: 26,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          const Text(
+                                            "عرض رمز صعود الحافلة",
+                                            style: TextStyle(
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: _kHeaderBlue,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // --------------------------------------------------
+                                // ✅✅✅ نهاية زر الباركود
+                                // --------------------------------------------------
+
+                                const SizedBox(height: 24),
 
                                 const Align(
                                   alignment: Alignment.centerRight,
@@ -200,6 +246,130 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
         ),
         bottomNavigationBar: _buildBottomNav(context),
       ),
+    );
+  }
+
+  // ✅ الدالة المسؤولة عن إظهار الباركود في نافذة منبثقة مع التنبيه
+  void _showQrCodeDialog(BuildContext context, String studentId) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "رمز صعود الحافلة (QR Code)",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF101828),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "يرجى طباعة هذا الرمز لإبرازه للسائق عند صعود الحافلة يومياً.",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475467),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // ✅✅✅ رسالة التنبيه
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3F2), // خلفية حمراء فاتحة
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFEE4E2), // حدود حمراء باهتة
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFD92D20), // لون الأيقونة
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: const Text(
+                            "تنبيه هام: يجب أن يكون هذا الرمز بحوزة الطالب لتجنب تسجيله كـ غائب.",
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFB42318), // لون النص
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.grey.shade300,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: QrImageView(
+                      data: studentId, // المعرف الفريد للطالب
+                      version: QrVersions.auto,
+                      size: 200.0, // حجم كبير وواضح
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kHeaderBlue,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        "إغلاق",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
