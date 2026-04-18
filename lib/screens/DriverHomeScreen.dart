@@ -3,62 +3,89 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'TripMapScreen.dart';
 
-class DriverHomeScreen extends StatefulWidget {
+class DriverHomeScreen extends StatelessWidget {
   const DriverHomeScreen({super.key});
-
-  @override
-  State<DriverHomeScreen> createState() => _DriverHomeScreenState();
-}
-
-class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  // 🎨 الألوان الثابتة
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
-  static const Color _kBg = Color(0xFFF2F3F5);
-  static const Color _kGreenAccent = Color(0xFF98AF8D);
-  static const Color _kCardBg = Color(0xFFDDE5D1);
-
-  final user = FirebaseAuth.instance.currentUser;
-  String get driverId => user?.uid ?? "";
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: _kBg,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // ✅ الهيدر العلوي
-              _TopHeader(title: "لوحة التحكم", onLang: () {}),
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E2A5E),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'لوحة التحكم',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
 
-              Expanded(
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(30),
+                    topRight: Radius.circular(30),
+                  ),
+                ),
                 child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 10),
-                      _MainCardContainer(
-                        children: [
-                          _buildWelcome(),
-                          const SizedBox(height: 20),
-                          const _SectionHeader(title: "رحلاتي"),
-                          const SizedBox(height: 15),
-                          const _SectionHeader(title: "رحلة الذهاب"),
-                          _buildTrips(type: "going"),
-                          const SizedBox(height: 20),
-                          const _SectionHeader(title: "رحلة العودة"),
-                          _buildTrips(type: "returning"),
-                        ],
+                      _buildWelcome(),
+                      const SizedBox(height: 20),
+
+                      const Text(
+                        'رحلاتي',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color.fromARGB(255, 9, 34, 78),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      // 🚍 رحلة الذهاب
+                      _buildTripSection(
+                        context,
+                        title: 'رحلة الذهاب',
+                        destination: 'المدرسة',
+                        time: '5:30 صباحاً',
+                        status: 'جارية الآن',
+                        studentCount: '2/38 تم الصعود',
+                        isActive: true,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // 🔁 رحلة العودة
+                      _buildTripSection(
+                        context,
+                        title: 'رحلة العودة',
+                        destination: 'منازل الطلاب',
+                        time: '1:30 مساءً',
+                        status: 'لم تبدأ',
+                        studentCount: '0/38 تم الصعود',
+                        isActive: false,
                       ),
                     ],
                   ),
                 ),
               ),
+            ),
 
-              // ✅ الشريط السفلي المطلوب
-              _buildBottomNav(context),
-            ],
-          ),
+            _buildBottomNav(context),
+          ],
         ),
       ),
     );
@@ -66,94 +93,123 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   // ✅ الترحيب
   Widget _buildWelcome() {
-    return const Align(
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Align(
       alignment: Alignment.centerRight,
-      child: Text(
-        "صباح الخير، ساجد",
-        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-      ),
-    );
-  }
+      child: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(user?.email?.split('@')[0])
+            .snapshots(),
+        builder: (context, snapshot) {
+          String name = (snapshot.hasData && snapshot.data!.exists)
+              ? snapshot.data!.get('firstName') ?? "مستخدم"
+              : "...";
 
-  // ✅ جلب الرحلات
-  Widget _buildTrips({required String type}) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection("Trips")
-          .where("driverId", isEqualTo: driverId)
-          .where("type", isEqualTo: type)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
-        var trips = snapshot.data!.docs;
-        if (trips.isEmpty)
-          return const Padding(
-            padding: EdgeInsets.all(10),
-            child: Text("لا توجد رحلات"),
+          final hour = DateTime.now().hour;
+          String greeting = hour < 12 ? "صباح الخير" : "مساء الخير";
+
+          return Text(
+            '$greeting، $name',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E2A5E),
+            ),
           );
-
-        return Column(children: trips.map((trip) => _tripCard(trip)).toList());
-      },
+        },
+      ),
     );
   }
 
-  // ✅ كرت الرحلة
-  Widget _tripCard(QueryDocumentSnapshot trip) {
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _kCardBg,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.green.shade300),
-      ),
-      child: Column(
-        children: [
-          _row("الوجهة النهائية:", trip['destination'].toString()),
-          _row("وقت بداية الرحلة:", trip['startTime'].toString()),
-          _row("حالة الرحلة:", trip['status'].toString()),
-          _row("عدد الطلاب:", trip['studentsCount'].toString()),
-          const SizedBox(height: 10),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kGreenAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: () => _startTrip(trip.id),
-            child: const Text(
-              "بدء الرحلة",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+  // ✅ هنا التعديل المهم (أضفنا context)
+  Widget _buildTripSection(
+    BuildContext context, {
+    required String title,
+    required String destination,
+    required String time,
+    required String status,
+    required String studentCount,
+    required bool isActive,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F0D1),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              _buildDataRow('الوجهة النهائية :', destination),
+              _buildDataRow('وقت بداية الرحلة :', time),
+              _buildDataRow('حالة الرحلة :', status),
+              _buildDataRow('عدد الطلاب :', studentCount),
+
+              const SizedBox(height: 15),
+
+              ElevatedButton(
+                onPressed: isActive
+                    ? () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TripMapScreen(),
+                          ),
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isActive
+                      ? const Color(0xFFB4C882)
+                      : const Color(0xFFD4E2B5),
+                  minimumSize: const Size(150, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  isActive ? 'بدء الرحلة' : 'غير متاح',
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _row(String title, String value) {
+  Widget _buildDataRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          Text(value),
+          Text(label, style: const TextStyle(color: Colors.black54)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
-  void _startTrip(String tripId) {
-    FirebaseFirestore.instance.collection("Trips").doc(tripId).update({
-      "status": "started",
-    });
-  }
-
-  // ✅ الـ Bottom Navigation Bar بنفس الطريقة التي طلبتِها
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -168,27 +224,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         backgroundColor: Colors.transparent,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
-        unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-        currentIndex: 0, // لوحة التحكم (الرئيسية) هي المفعلة هنا
+        currentIndex: 0,
         onTap: (index) {
-          if (index == 0) {
-            // الانتقال لصفحة الخريطة عند الضغط على الرئيسية
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const TripMapScreen()),
-            );
-          } else if (index == 1) {
-            // هنا يمكنك الانتقال لصفحة الملف الشخصي
-            // Navigator.pushReplacementNamed(context, '/profile');
-          }
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
         },
         items: const [
           BottomNavigationBarItem(
@@ -200,88 +238,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             label: 'الملف الشخصي',
           ),
         ],
-      ),
-    );
-  }
-}
-
-// --- الكومبوننتس المساعدة ---
-
-class _TopHeader extends StatelessWidget {
-  final String title;
-  final VoidCallback onLang;
-  const _TopHeader({required this.title, required this.onLang});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 85,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onLang,
-            icon: const Icon(Icons.language, color: Colors.white),
-          ),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const Spacer(),
-          const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
-}
-
-class _MainCardContainer extends StatelessWidget {
-  final List<Widget> children;
-  const _MainCardContainer({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14),
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(children: children),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF98AF8D),
-        ),
       ),
     );
   }
