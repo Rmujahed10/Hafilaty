@@ -30,6 +30,8 @@ dependencies:
   hijri: ^3.0.0
   http: ^0.13.6
   url_launcher: ^6.3.2
+  flutter_polyline_points: ^1.0.0
+
   
   
 # =================================================================
