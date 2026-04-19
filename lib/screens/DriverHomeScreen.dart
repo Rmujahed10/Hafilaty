@@ -1,5 +1,4 @@
 // ignore_for_file: file_names
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -59,29 +58,31 @@ class DriverHomeScreen extends StatelessWidget {
 
                       const SizedBox(height: 15),
 
-                      // 🚍 رحلة الذهاب
+                      // 🚍 رحلة الذهاب (Morning)
                       _buildTripSection(
-  context,
-  title: 'رحلة الذهاب',
-  destination: 'المدرسة',
-  time: '5:30 صباحاً',
-  status: 'جارية الآن',
-  busId: '102',
-  isActive: true,
-),
+                        context,
+                        title: 'رحلة الذهاب',
+                        destination: 'المدرسة',
+                        time: '5:30 صباحاً',
+                        status: 'جارية الآن',
+                        busId: '102',
+                        isActive: true,
+                        isMorningTrip: true, // Passed to Map
+                      ),
 
                       const SizedBox(height: 20),
 
-                      // 🔁 رحلة العودة
+                      // 🔁 رحلة العودة (Afternoon)
                       _buildTripSection(
-  context,
-  title: 'رحلة العودة',
-  destination: 'منازل الطلاب',
-  time: '1:30 مساءً',
-  status: 'لم تبدأ',
-  busId: '102',
-  isActive: false,
-),
+                        context,
+                        title: 'رحلة العودة',
+                        destination: 'منازل الطلاب',
+                        time: '1:30 مساءً',
+                        status: 'لم تبدأ',
+                        busId: '102',
+                        isActive: true, // Set to true when you are ready to test
+                        isMorningTrip: false, // Passed to Map
+                      ),
                     ],
                   ),
                 ),
@@ -95,7 +96,6 @@ class DriverHomeScreen extends StatelessWidget {
     );
   }
 
-  // ✅ الترحيب
   Widget _buildWelcome() {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -127,106 +127,106 @@ class DriverHomeScreen extends StatelessWidget {
     );
   }
 
-  // ✅ هنا التعديل المهم (أضفنا context)
-Widget _buildTripSection(
-  BuildContext context, {
-  required String title,
-  required String destination,
-  required String time,
-  required String status,
-  required String busId,
-  required bool isActive,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        title,
-        style: const TextStyle(
-          color: Colors.grey,
-          fontWeight: FontWeight.bold,
+  Widget _buildTripSection(
+    BuildContext context, {
+    required String title,
+    required String destination,
+    required String time,
+    required String status,
+    required String busId,
+    required bool isActive,
+    required bool isMorningTrip,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
-      const SizedBox(height: 8),
+        const SizedBox(height: 8),
 
-      Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8F0D1),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.shade300),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F0D1),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              _buildDataRow('الوجهة النهائية :', destination),
+              _buildDataRow('وقت بداية الرحلة :', time),
+              _buildDataRow('حالة الرحلة :', status),
+
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('Attendance')
+                    .doc(DateFormat('yyyy-MM-dd').format(DateTime.now()))
+                    .collection('PresentStudents')
+                    .where('BusID', isEqualTo: busId) 
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildDataRow('عدد الطلاب الحاضرين اليوم :', 'جاري التحميل...');
+                  }
+
+                  if (snapshot.hasError) {
+                    return _buildDataRow('عدد الطلاب الحاضرين اليوم :', 'حدث خطأ');
+                  }
+
+                  final presentCount = snapshot.data?.docs.length ?? 0;
+
+                  return _buildDataRow(
+                    'عدد الطلاب الحاضرين اليوم :',
+                    '$presentCount طالب',
+                  );
+                },
+              ),
+
+              const SizedBox(height: 15),
+
+              ElevatedButton(
+                onPressed: isActive
+                    ? () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TripMapScreen(
+                              busId: busId,
+                              isMorningTrip: isMorningTrip,
+                            ),
+                          ),
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isActive
+                      ? const Color(0xFFB4C882)
+                      : const Color(0xFFD4E2B5),
+                  minimumSize: const Size(150, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  isActive ? 'بدء الرحلة' : 'غير متاح',
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          children: [
-            _buildDataRow('الوجهة النهائية :', destination),
-            _buildDataRow('وقت بداية الرحلة :', time),
-            _buildDataRow('حالة الرحلة :', status),
-
-            StreamBuilder<QuerySnapshot>(
-  // البحث في الحضور بناءً على تاريخ اليوم
-  stream: FirebaseFirestore.instance
-      .collection('Attendance')
-      .doc(DateFormat('yyyy-MM-dd').format(DateTime.now()))
-      .collection('PresentStudents')
-      // يمكنك إضافة فلتر الباص إذا كان السجل يحتوي على طلاب باصات مختلفة
-      .where('BusID', isEqualTo: busId) 
-      .snapshots(),
-  builder: (context, snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return _buildDataRow('عدد الطلاب الحاضرين اليوم :', 'جاري التحميل...');
-    }
-
-    if (snapshot.hasError) {
-      return _buildDataRow('عدد الطلاب الحاضرين اليوم :', 'حدث خطأ');
-    }
-
-    // عدد المستندات في مجموعة PresentStudents يمثل الطلاب الحاضرين
-    final presentCount = snapshot.data?.docs.length ?? 0;
-
-    return _buildDataRow(
-      'عدد الطلاب الحاضرين اليوم :',
-      '$presentCount طالب',
+      ],
     );
-  },
-),
-
-            const SizedBox(height: 15),
-
-            ElevatedButton(
-              onPressed: isActive
-                  ? () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TripMapScreen(),
-                        ),
-                      );
-                    }
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isActive
-                    ? const Color(0xFFB4C882)
-                    : const Color(0xFFD4E2B5),
-                minimumSize: const Size(150, 45),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                elevation: 0,
-              ),
-              child: Text(
-                isActive ? 'بدء الرحلة' : 'غير متاح',
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
+  }
 
   Widget _buildDataRow(String label, String value) {
     return Padding(

@@ -1,49 +1,67 @@
 import 'package:url_launcher/url_launcher.dart';
-import 'trip_pins_service.dart'; // Needed to access StudentPinModel
+import 'trip_pins_service.dart';
 
 class TripNavigationService {
-  Future<void> startMultiStopNavigation({
+  int currentBatchIndex = 0;
+
+  Future<void> startSmartNavigation({
     required double driverLat,
     required double driverLng,
     required List<StudentPinModel> students,
+    required SchoolModel school,
+    required bool isMorningTrip,
   }) async {
-    if (students.isEmpty) return;
+    if (students.isEmpty && !isMorningTrip) return;
 
-    // 1. Origin: The driver's live GPS location
-    String origin = '$driverLat,$driverLng';
+    // Calculate how many students we've already dealt with
+    int studentsRouted = currentBatchIndex * 9;
+    List<StudentPinModel> remainingStudents = students.skip(studentsRouted).toList();
 
-    // 2. Batching: Take up to 10 students (9 waypoints + 1 destination)
-    List<StudentPinModel> batch = students.take(10).toList();
-
-    // 3. Destination: The last student in this batch
-    String destination = '${batch.last.lat},${batch.last.lng}';
-
-    // 4. Waypoints: All students in the batch EXCEPT the last one
-    String waypoints = '';
-    if (batch.length > 1) {
-      // The 'optimize:true|' prefix is the magic that sorts them by closest/fastest!
-      waypoints = 'optimize:true|';
-      for (int i = 0; i < batch.length - 1; i++) {
-        waypoints += '${batch[i].lat},${batch[i].lng}';
-        if (i < batch.length - 2) {
-          waypoints += '|'; // Add a pipe separator between coordinates
-        }
-      }
+    // If all students are done but it's morning, route directly to School
+    if (remainingStudents.isEmpty && isMorningTrip) {
+      await _launchGoogleMaps('$driverLat,$driverLng', '${school.lat},${school.lng}', '');
+      currentBatchIndex = 999; // Finished
+      return;
     }
 
-    // 5. Construct the final Google Maps URL
-    // dir_action=navigate tells Android to instantly start driving mode
-    final String url = 'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$destination&waypoints=$waypoints&travelmode=driving&dir_action=navigate';
-    final Uri googleMapsUrl = Uri.parse(url);
+    String origin = (currentBatchIndex == 0 && !isMorningTrip) 
+        ? '${school.lat},${school.lng}' 
+        : '$driverLat,$driverLng';
 
-    // 6. Launch the external app
-    if (await canLaunchUrl(googleMapsUrl)) {
-      await launchUrl(
-        googleMapsUrl,
-        mode: LaunchMode.externalApplication,
-      );
+    String destination = '';
+    String waypointsStr = '';
+
+    if (remainingStudents.length <= 9) {
+      // --- FINAL BATCH ---
+      if (isMorningTrip) {
+        destination = '${school.lat},${school.lng}'; // SCHOOL IS ALWAYS LAST
+        waypointsStr = remainingStudents.map((s) => '${s.lat},${s.lng}').join('%7C');
+      } else {
+        destination = '${remainingStudents.last.lat},${remainingStudents.last.lng}';
+        waypointsStr = remainingStudents.take(remainingStudents.length - 1).map((s) => '${s.lat},${s.lng}').join('%7C');
+      }
+      currentBatchIndex = 999;
     } else {
-      throw Exception('Could not launch Google Maps');
+      // --- INTERMEDIATE BATCH ---
+      List<StudentPinModel> batch = remainingStudents.take(9).toList();
+      destination = '${batch.last.lat},${batch.last.lng}';
+      waypointsStr = batch.take(8).map((s) => '${s.lat},${s.lng}').join('%7C');
+      currentBatchIndex++;
+    }
+
+    await _launchGoogleMaps(origin, destination, waypointsStr);
+  }
+
+  Future<void> _launchGoogleMaps(String origin, String dest, String ways) async {
+    // Official Google Maps URL scheme
+    String url = 'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving&dir_action=navigate';
+    if (ways.isNotEmpty) url += '&waypoints=$ways';
+    
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      throw 'Could not launch Google Maps';
     }
   }
 }
