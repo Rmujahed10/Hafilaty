@@ -15,22 +15,22 @@ dependencies:
   flutter:
     sdk: flutter
   qr_flutter: ^4.1.0 
-  firebase_messaging: ^14.7.10 #forscedsualnotifecation
-  flutter_local_notifications: ^17.0.0
+  firebase_messaging: ^16.2.0 #forscedsualnotifecation
+  flutter_local_notifications: ^21.0.0
   google_maps_flutter: ^2.12.0  # For the interactive map
-  geolocator: ^12.0.0          # To get the user's current GPS position
-  firebase_auth: ^4.16.0 
-  firebase_core: ^2.25.0
-  cloud_firestore: ^4.15.0
-  firebase_database: ^10.5.7
+  geolocator: ^14.0.2          # To get the user's current GPS position
+  firebase_auth: ^6.4.0 
+  firebase_core: ^4.7.0
+  cloud_firestore: ^6.3.0
+  firebase_database: ^12.3.0
   cupertino_icons: ^1.0.8
   easy_localization: ^3.0.7
-  translator: ^0.1.7
+  translator: ^1.0.4+1
   intl: ^0.20.2
   hijri: ^3.0.0
-  http: ^0.13.6
+  http: ^1.6.0
   url_launcher: ^6.3.2
-  flutter_polyline_points: ^1.0.0
+  flutter_polyline_points: ^3.1.0
 
   
   

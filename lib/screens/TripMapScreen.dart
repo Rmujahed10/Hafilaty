@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart'; 
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'dart:ui' as ui;
+
 import 'TripDetailsScreen.dart';
 import 'trip_pins_service.dart';
 import 'trip_navigation_service.dart';
-import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:intl/intl.dart';
-import 'dart:ui' as ui;
-
 
 class TripMapScreen extends StatefulWidget {
   const TripMapScreen({super.key});
@@ -29,10 +29,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
   Set<Marker> _markers = {};
   List<StudentPinModel> _students = [];
-  Set<Polyline> _polylines = {};
-List<LatLng> polylineCoordinates = [];
-PolylinePoints polylinePoints = PolylinePoints();
- 
+  final Set<Polyline> _polylines = {}; // Made final based on linter warning
+  List<LatLng> polylineCoordinates = [];
+  PolylinePoints polylinePoints = PolylinePoints(apiKey: 'AIzaSyASw9kOAjo6lWB5OX7oFFGU40CCGFPVJYY');
+
+  // --- NEW TRACKING VARIABLES ---
+  StreamSubscription<Position>? _positionStreamSubscription;
+  Marker? _busMarker;
+  LatLng? _currentBusLocation;
 
   @override
   void initState() {
@@ -40,39 +44,41 @@ PolylinePoints polylinePoints = PolylinePoints();
     _loadPins();
   }
 
-// داخل _TripMapScreenState في ملف TripMapScreen.dart
-
-Future<void> _loadPins() async {
-  try {
-    // جلب البيانات كاملة (بدون تكرار وبدون طلبات إضافية)
-    final List<StudentPinModel> presentStudents = await _tripPinsService.getPresentStudentsData();
-
-    if (presentStudents.isEmpty) {
-      debugPrint("لا يوجد طلاب حاضرون اليوم.");
-      setState(() {
-        _markers = {};
-        _students = [];
-      });
-      return;
-    }
-
-    // إنشاء الماركرز مباشرة من البيانات المحملة
-    final markers = _tripPinsService.getMarkersFromList(presentStudents);
-
-    setState(() {
-      _students = presentStudents;
-      _markers = markers;
-    });
-
-    if (_students.isNotEmpty) {
-      _getRoutePolyline(); 
-    }
-
-    await _fitMapToMarkers();
-  } catch (e) {
-    debugPrint("Error loading pins: $e");
+  @override
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
   }
-}
+
+  Future<void> _loadPins() async {
+    try {
+      final List<StudentPinModel> presentStudents = await _tripPinsService.getPresentStudentsData();
+
+      if (presentStudents.isEmpty) {
+        debugPrint("لا يوجد طلاب حاضرون اليوم.");
+        setState(() {
+          _markers = {};
+          _students = [];
+        });
+        return;
+      }
+
+      final markers = _tripPinsService.getMarkersFromList(presentStudents);
+
+      setState(() {
+        _students = presentStudents;
+        _markers = markers;
+      });
+
+      if (_students.isNotEmpty) {
+        await _getRoutePolyline(); 
+      }
+
+      await _fitMapToMarkers();
+    } catch (e) {
+      debugPrint("Error loading pins: $e");
+    }
+  }
 
   Future<void> _fitMapToMarkers() async {
     if (_markers.isEmpty) return;
@@ -102,20 +108,116 @@ Future<void> _loadPins() async {
     );
   }
 
-  Future<void> _startTrip() async {
-    if (_students.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا يوجد طلاب لهذا الباص')),
-      );
+  Future<void> _startLiveTracking() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint("Location permissions are denied");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint("Location permissions are permanently denied");
       return;
     }
 
-    final firstStudent = _students.first;
-
-    await _tripNavigationService.startNavigationToPoint(
-      lat: firstStudent.lat,
-      lng: firstStudent.lng,
+    LocationSettings locationSettings = const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, 
     );
+
+    _positionStreamSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen((Position position) async {
+      LatLng newLocation = LatLng(position.latitude, position.longitude);
+
+      setState(() {
+        _currentBusLocation = newLocation;
+        _busMarker = Marker(
+          markerId: const MarkerId("bus_location"),
+          position: newLocation,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          infoWindow: const InfoWindow(title: "موقع الباص الحالي"),
+        );
+      });
+
+      final controller = await _mapController.future;
+      controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: newLocation,
+            zoom: 16.0,
+            bearing: position.heading, 
+            tilt: 45.0, 
+          ),
+        ),
+      );
+    });
+  }
+
+  Future<void> _startTrip() async {
+    if (_students.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يوجد طلاب لهذا الباص')),
+        );
+      }
+      return;
+    }
+
+    await _startLiveTracking();
+    await _getRoutePolyline();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم بدء الرحلة وبدأ التتبع المباشر')),
+      );
+    }
+  }
+
+  Future<void> _getRoutePolyline() async {
+    if (_students.isEmpty) return;
+
+    PointLatLng origin = _currentBusLocation != null 
+        ? PointLatLng(_currentBusLocation!.latitude, _currentBusLocation!.longitude)
+        : PointLatLng(_initialPosition.latitude, _initialPosition.longitude);
+        
+    PointLatLng destination = PointLatLng(_students.last.lat, _students.last.lng);
+
+    List<PolylineWayPoint> wayPoints = _students
+        .skip(1) 
+        .take(10) 
+        .map((s) => PolylineWayPoint(location: "${s.lat},${s.lng}"))
+        .toList();
+
+    PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
+      request: PolylineRequest(
+        origin: origin,
+        destination: destination,
+        mode: TravelMode.driving,
+        wayPoints: wayPoints,
+        optimizeWaypoints: true,
+      ),
+    );
+
+    if (result.points.isNotEmpty) {
+      setState(() {
+        _polylines.clear(); 
+        _polylines.add(Polyline(
+          polylineId: const PolylineId("route"),
+          color: const Color(0xFF0D1B36), 
+          width: 5,
+          points: result.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+        ));
+      });
+    }
+
+    if (result.errorMessage != null && result.errorMessage!.isNotEmpty) {
+      debugPrint("Google Maps Error Message: ${result.errorMessage}");
+      debugPrint("Status: ${result.status}");
+    }
   }
 
   @override
@@ -141,7 +243,9 @@ Future<void> _loadPins() async {
                       ),
                       myLocationButtonEnabled: false,
                       zoomControlsEnabled: false,
-                      markers: _markers,
+                      markers: _busMarker != null 
+                          ? {..._markers, _busMarker!} 
+                          : _markers,
                       polylines: _polylines,
                       onMapCreated: (controller) {
                         _mapController.complete(controller);
@@ -161,45 +265,6 @@ Future<void> _loadPins() async {
       ),
     );
   }
-  Future<void> _getRoutePolyline() async {
-  if (_students.isEmpty) return;
-
-  // إعداد نقاط البداية والنهاية
-  PointLatLng origin = PointLatLng(_initialPosition.latitude, _initialPosition.longitude);
-  PointLatLng destination = PointLatLng(_students.last.lat, _students.last.lng);
-
-  // إضافة الطلاب كنقاط توقف (Waypoints)
-  List<PolylineWayPoint> wayPoints = _students
-      .skip(1) 
-      .take(10) 
-      .map((s) => PolylineWayPoint(location: "${s.lat},${s.lng}"))
-      .toList();
-
-  // طلب المسار من Google Directions API
-  PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
-    "AIzaSyCMOPv3-LdcAPUteoIZIE1jnePnP6oLPi8", // استبدليه بمفتاحك
-    origin,
-    destination,
-    wayPoints: wayPoints,
-    travelMode: TravelMode.driving,
-  );
-
-  if (result.points.isNotEmpty) {
-    setState(() {
-      _polylines.add(Polyline(
-        polylineId: const PolylineId("route"),
-        color: const Color(0xFF0D1B36), // لون الهيدر الخاص بكِ ليكون متناسقاً
-        width: 5,
-        points: result.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
-      ));
-    });
-  }
-
-  if (result.errorMessage != null && result.errorMessage!.isNotEmpty) {
-  print("Google Maps Error Message: ${result.errorMessage}");
-  print("Status: ${result.status}");
-}
-}
 
   Widget _buildTripControlPanel() {
     return Container(
@@ -259,7 +324,8 @@ Future<void> _loadPins() async {
             label: "إنهاء الرحلة",
             color: const Color(0xFFD64545),
             onPressed: () {
-              print("تم إنهاء الرحلة");
+              _positionStreamSubscription?.cancel();
+              debugPrint("تم إنهاء الرحلة وإيقاف التتبع");
             },
           ),
         ],
