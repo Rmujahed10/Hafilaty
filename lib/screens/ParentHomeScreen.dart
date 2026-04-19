@@ -192,11 +192,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           .where('parentPhone', isEqualTo: _phoneDocId)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         var students = snapshot.data?.docs ?? [];
-        if (students.isEmpty)
+        if (students.isEmpty) {
           return _buildEmptyState("لا يوجد طلبات تسجيل حالياً");
+        }
 
         return Column(
           children: students.map((doc) {
@@ -239,8 +241,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty)
+        if (docs.isEmpty) {
           return _buildEmptyState("لا يوجد أبناء مسجلين لعرض الحضور");
+        }
         return Column(
           children: docs
               .map((doc) => _buildAttendanceCard(context, doc.id, doc.data()))

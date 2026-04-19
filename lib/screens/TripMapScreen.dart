@@ -29,7 +29,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
   Set<Marker> _markers = {};
   List<StudentPinModel> _students = [];
-  final Set<Polyline> _polylines = {}; // Made final based on linter warning
+  final Set<Polyline> _polylines = {}; 
   List<LatLng> polylineCoordinates = [];
   PolylinePoints polylinePoints = PolylinePoints(apiKey: 'AIzaSyASw9kOAjo6lWB5OX7oFFGU40CCGFPVJYY');
 
@@ -188,7 +188,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
     List<PolylineWayPoint> wayPoints = _students
         .skip(1) 
-        .take(10) 
+        .take(24) // Updated to max out the waypoint limit safely
         .map((s) => PolylineWayPoint(location: "${s.lat},${s.lng}"))
         .toList();
 

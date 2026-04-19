@@ -174,6 +174,7 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
     await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
       'status': 'refused',
     });
+    // ignore: use_build_context_synchronously
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم رفض الطلب")));
   }
 

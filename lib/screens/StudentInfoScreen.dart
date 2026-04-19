@@ -1,4 +1,4 @@
-// ignore_for_file: file_names
+// ignore_for_file: file_names, use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart'; // Ensure 'flutter pub add url_launcher' was run
@@ -161,10 +161,12 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
           child: StreamBuilder<DocumentSnapshot>(
             stream: _ref.snapshots(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData)
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
-              if (!snapshot.data!.exists)
+              }
+              if (!snapshot.data!.exists) {
                 return const Center(child: Text("تم حذف البيانات"));
+              }
 
               final data = snapshot.data!.data() as Map<String, dynamic>;
 

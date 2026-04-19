@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element, file_names
+// ignore_for_file: unused_element, file_names, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;

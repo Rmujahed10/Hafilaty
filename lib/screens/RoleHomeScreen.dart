@@ -1,4 +1,4 @@
-// ignore_for_file: file_names
+// ignore_for_file: file_names, use_build_context_synchronously, duplicate_ignore
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -57,6 +57,7 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   Future<void> _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return; // Guard against async gap
+    // ignore: use_build_context_synchronously
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
@@ -82,6 +83,7 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
       },
     );
     if (confirm == true && mounted) {
+      // ignore: use_build_context_synchronously
       await _deleteAccount(context);
     }
   }

@@ -5,6 +5,7 @@ class TripNavigationService {
     required double lat,
     required double lng,
   }) async {
+    // Correct URL scheme for Google Maps external navigation
     final Uri googleMapsUrl = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
     );

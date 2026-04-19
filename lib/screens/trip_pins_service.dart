@@ -31,11 +31,23 @@ class TripPinsService {
 
       return querySnapshot.docs.map((doc) {
         final data = doc.data();
+        
+        // Safely handle missing or malformed coordinate data
+        double parsedLat = 0.0;
+        double parsedLng = 0.0;
+        
+        if (data['Latitude'] != null) {
+          parsedLat = double.tryParse(data['Latitude'].toString()) ?? 0.0;
+        }
+        if (data['Longitude'] != null) {
+          parsedLng = double.tryParse(data['Longitude'].toString()) ?? 0.0;
+        }
+
         return StudentPinModel(
-          studentId: data['StudentID'] ?? '',
-          name: data['StudentName_ar'] ?? '', // استخدام الاسم العربي من الصورة
-          lat: (data['Latitude'] as num).toDouble(),
-          lng: (data['Longitude'] as num).toDouble(),
+          studentId: data['StudentID']?.toString() ?? '',
+          name: data['StudentName_ar']?.toString() ?? 'طالب غير معروف', 
+          lat: parsedLat,
+          lng: parsedLng,
         );
       }).toList();
     } catch (e) {
