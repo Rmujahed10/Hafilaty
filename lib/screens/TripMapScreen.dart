@@ -167,13 +167,36 @@ class _TripMapScreenState extends State<TripMapScreen> {
       return;
     }
 
-    await _startLiveTracking();
-    await _getRoutePolyline();
+    // 1. Ensure live tracking is running so we have a location
+    if (_currentBusLocation == null) {
+      await _startLiveTracking();
+      // Give it a quick second to fetch the GPS coordinates
+      await Future.delayed(const Duration(seconds: 2)); 
+    }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم بدء الرحلة وبدأ التتبع المباشر')),
+    // 2. Fallback in case location services are disabled or taking too long
+    double startLat = _currentBusLocation?.latitude ?? _initialPosition.latitude;
+    double startLng = _currentBusLocation?.longitude ?? _initialPosition.longitude;
+
+    // 3. Launch the external Google Maps app with the optimized students
+    try {
+      await _tripNavigationService.startMultiStopNavigation(
+        driverLat: startLat,
+        driverLng: startLng,
+        students: _students,
       );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم فتح خرائط جوجل لبدء الرحلة')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر فتح خرائط جوجل: $e')),
+        );
+      }
     }
   }
 
