@@ -93,7 +93,15 @@ def reoptimize_school_routes(school_id):
 
     # STEP A: Delete ALL old Bus documents for this school
     old_buses = db.collection("Buses").where("SchoolID", "==", numeric_search_id).stream()
+    driver_mapping = {} # Store mapping of BusNumber to Driver Info
     for bus_doc in old_buses:
+        data = bus_doc.to_dict()
+        bus_num = data.get("BusNumber")
+        if bus_num and "DriverID" in data:
+            driver_mapping[bus_num] = {
+                "DriverID": data.get("DriverID"),
+                "DriverName": data.get("DriverName", "")
+            }
         batch.delete(bus_doc.reference)
 
     # STEP B: Clear old BusID assignments from all students
@@ -103,27 +111,35 @@ def reoptimize_school_routes(school_id):
     # 5. Create NEW assignments and Bus Manifests
     bus_groups = df_result.groupby('BusID')
     for bus_idx, group in bus_groups:
-        # Simple Unique ID (Starting at 101)
         friendly_bus_number = int(bus_idx) + 101
         bus_doc_id = f"Bus_{numeric_search_id}_{friendly_bus_number}"
         
         unique_student_ids = list(set(group['doc_id'].tolist()))
 
-        # Update Student documents with the new friendly ID
         for doc_id in unique_student_ids:
             student_ref = db.collection("Students").document(doc_id)
             batch.update(student_ref, {"BusID": str(friendly_bus_number)})
 
-        # Create the Bus manifest
-        bus_ref = db.collection("Buses").document(bus_doc_id)
-        batch.set(bus_ref, {
+        # ✅ Retrieve driver info if it existed for this bus number
+        old_driver_info = driver_mapping.get(friendly_bus_number, {})
+
+        bus_data = {
             "SchoolID": numeric_search_id,
             "BusNumber": friendly_bus_number,
             "StudentList": unique_student_ids,
             "StudentNames": list(set(group['StudentName'].tolist())) if 'StudentName' in group else [],
             "TotalStudents": len(unique_student_ids),
+            "tripStatus": "لم تبدأ",
             "LastUpdated": firestore.SERVER_TIMESTAMP
-        })
+        }
+
+        # ✅ Re-attach driver if they existed
+        if old_driver_info:
+            bus_data["DriverID"] = old_driver_info.get("DriverID")
+            bus_data["DriverName"] = old_driver_info.get("DriverName")
+
+        bus_ref = db.collection("Buses").document(bus_doc_id)
+        batch.set(bus_ref, bus_data)
 
     batch.commit()
     print(f"Clean optimization successful for school {numeric_search_id}. IDs start at 101.")

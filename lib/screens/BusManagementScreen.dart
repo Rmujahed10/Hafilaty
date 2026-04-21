@@ -327,7 +327,7 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     );
   }
 
-  Widget _buildBusList() {
+Widget _buildBusList() {
     if (currentSchoolId == null) return const Center(child: Text("خطأ في البيانات"));
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -342,15 +342,23 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
           itemCount: buses.length,
           itemBuilder: (context, index) {
             final data = buses[index].data() as Map<String, dynamic>;
-            final busDocId = buses[index].id; // We need the document ID to assign the driver
+            final busDocId = buses[index].id;
+            
+            // ✅ Robust Driver Check: Look for DriverName OR DriverID
+            String? driverBadgeText = data['DriverName'];
+            if (driverBadgeText == null || driverBadgeText.isEmpty) {
+              if (data['DriverID'] != null && data['DriverID'].toString().isNotEmpty) {
+                driverBadgeText = data['DriverID']; // Fallback to ID/Phone if name is missing
+              }
+            }
             
             return _BusCardItem(
               busNumber: data['BusNumber'] ?? 0,
               totalStudents: data['TotalStudents'] ?? 0,
               capacity: _kBusCapacity,
               isFull: (data['TotalStudents'] ?? 0) >= _kBusCapacity,
-              driverName: data['DriverName'], // ✅ Check if a driver is assigned
-              onAssignDriver: () => _assignDriverToBus(busDocId), // ✅ Trigger assignment
+              driverName: driverBadgeText, // ✅ Pass the robust check result
+              onAssignDriver: () => _assignDriverToBus(busDocId),
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetManagementScreen())),
             );
           },

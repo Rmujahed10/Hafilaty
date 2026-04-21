@@ -39,39 +39,35 @@ class _AdminHomeState extends State<AdminHome> {
 
       if (!userDoc.exists) return;
 
-      String schoolIdString = userDoc.get('schoolId').toString();
-      currentSchoolId = schoolIdString;
-      int schoolIdInt = int.parse(schoolIdString);
+      currentSchoolId = userDoc.get('schoolId').toString();
+      int schoolIdInt = int.parse(currentSchoolId!);
 
-      if (currentSchoolId != null) {
-        final schoolDoc = await FirebaseFirestore.instance
-            .collection('Schools')
-            .doc(currentSchoolId)
-            .get();
-        final studentsQuery = await FirebaseFirestore.instance
-            .collection('Students')
-            .where('SchoolID', isEqualTo: schoolIdInt)
-            .count()
-            .get();
-        final busesQuery = await FirebaseFirestore.instance
-            .collection('Buses')
-            .where('SchoolID', isEqualTo: schoolIdInt)
-            .count()
-            .get();
+      final schoolDoc = await FirebaseFirestore.instance
+          .collection('Schools')
+          .doc(currentSchoolId)
+          .get();
+      final studentsQuery = await FirebaseFirestore.instance
+          .collection('Students')
+          .where('SchoolID', isEqualTo: schoolIdInt)
+          .count()
+          .get();
+      final busesQuery = await FirebaseFirestore.instance
+          .collection('Buses')
+          .where('SchoolID', isEqualTo: schoolIdInt)
+          .count()
+          .get();
 
-        if (mounted) {
-          setState(() {
-            schoolNameAr = schoolDoc.exists
-                ? schoolDoc.get('School Name_ar')
-                : "مدرسة غير معروفة";
-            studentCount = studentsQuery.count ?? 0;
-            busCount = busesQuery.count ?? 0;
-            isLoading = false;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          schoolNameAr = schoolDoc.exists
+              ? schoolDoc.get('School Name_ar')
+              : "مدرسة غير معروفة";
+          studentCount = studentsQuery.count ?? 0;
+          busCount = busesQuery.count ?? 0;
+          isLoading = false;
+        });
       }
     } catch (e) {
-      debugPrint("ADMIN_HOME_DATA_ERROR: $e");
       if (mounted) setState(() => isLoading = false);
     }
   }
@@ -110,7 +106,6 @@ class _AdminHomeState extends State<AdminHome> {
                                   ),
                                 ),
                                 const SizedBox(height: 20),
-
                                 Row(
                                   children: [
                                     Expanded(
@@ -128,11 +123,10 @@ class _AdminHomeState extends State<AdminHome> {
                                     ),
                                   ],
                                 ),
-
                                 const SizedBox(height: 24),
-                                _SectionHeader(title: "حالة الحافلات"),
+                                _SectionHeader(title: "حالة الحافلات المباشرة"),
                                 _buildBusStatusRow(),
-
+                                const SizedBox(height: 24),
                                 _SectionHeader(title: "إدارة النظام"),
                                 GridView.count(
                                   shrinkWrap: true,
@@ -140,7 +134,7 @@ class _AdminHomeState extends State<AdminHome> {
                                   crossAxisCount: 2,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  childAspectRatio: 1.1,
+                                  childAspectRatio: 1.8,
                                   children: [
                                     _ActionTile(
                                       title: "إدارة الحافلات",
@@ -150,7 +144,6 @@ class _AdminHomeState extends State<AdminHome> {
                                         '/bus_management',
                                       ),
                                     ),
-
                                     _ActionTile(
                                       title: "إدارة الطلاب",
                                       icon: Icons.people,
@@ -161,7 +154,6 @@ class _AdminHomeState extends State<AdminHome> {
                                     ),
                                   ],
                                 ),
-
                                 const SizedBox(height: 24),
                                 _SectionHeader(title: "طلبات التسجيل الجديدة"),
                                 _buildRegistrationRequests(),
@@ -171,7 +163,7 @@ class _AdminHomeState extends State<AdminHome> {
                         ),
                       ),
               ),
-              _buildBottomNav(context), // ✅ Standardized labeled toolbar
+              _buildBottomNav(context),
             ],
           ),
         ),
@@ -179,7 +171,6 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
-  // ✅ New Standardized Bottom Navigation with Titles
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -203,11 +194,9 @@ class _AdminHomeState extends State<AdminHome> {
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
-        currentIndex: 0, // Home is active
+        currentIndex: 0,
         onTap: (index) {
-          if (index == 1) {
-            Navigator.pushReplacementNamed(context, '/role_home');
-          }
+          if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
         },
         items: const [
           BottomNavigationBarItem(
@@ -233,14 +222,13 @@ class _AdminHomeState extends State<AdminHome> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final busDocs = snapshot.data!.docs;
-        if (busDocs.isEmpty) {
+        if (busDocs.isEmpty)
           return const Center(
             child: Text(
-              "لا توجد حافلات مسجلة حالياً",
+              "لا توجد حافلات",
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           );
-        }
 
         return GridView.builder(
           shrinkWrap: true,
@@ -254,20 +242,44 @@ class _AdminHomeState extends State<AdminHome> {
           itemCount: busDocs.length,
           itemBuilder: (context, index) {
             final data = busDocs[index].data() as Map<String, dynamic>;
+            final status = data['tripStatus'] ?? "لم تبدأ";
+            final bool isActive = status == "جارية الآن";
+
             return Container(
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFFD4E09B).withValues(alpha: 0.7),
+                color: isActive
+                    ? const Color(0xFFD4E09B)
+                    : const Color(0xFFE6E6E6),
                 borderRadius: BorderRadius.circular(15),
-              ),
-              child: Text(
-                "حافلة ${data['BusNumber'] ?? '?'}",
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: _kHeaderBlue,
-                  fontSize: 13,
+                border: Border.all(
+                  color: isActive
+                      ? const Color(0xFF98AF8D)
+                      : Colors.transparent,
                 ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "حافلة ${data['BusNumber'] ?? '?'}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: _kHeaderBlue,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isActive
+                          ? Colors.green.shade900
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
               ),
             );
           },
@@ -284,7 +296,7 @@ class _AdminHomeState extends State<AdminHome> {
           .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
           return const Align(
             alignment: Alignment.centerRight,
             child: Text(
@@ -292,7 +304,6 @@ class _AdminHomeState extends State<AdminHome> {
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
           );
-        }
         return Column(
           children: snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -307,9 +318,7 @@ class _AdminHomeState extends State<AdminHome> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8F9FA),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.grey.withValues(alpha: 0.05),
-                  ),
+                  border: Border.all(color: Colors.grey.withAlpha(20)),
                 ),
                 child: Row(
                   children: [
@@ -343,8 +352,7 @@ class _AdminHomeState extends State<AdminHome> {
   }
 }
 
-/* --- Reusable UI Kit Components --- */
-
+/* --- Reusable UI --- */
 class _TopHeader extends StatelessWidget {
   final String title;
   final VoidCallback onLang;
@@ -479,23 +487,24 @@ class _ActionTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 22),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFF2F3F5)),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: const Color(0xFF0D1B36), size: 32),
-            const SizedBox(height: 10),
+            Icon(icon, color: const Color(0xFF0D1B36), size: 28),
+            const SizedBox(height: 6),
             Text(
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                height: 1.2,
+                height: 1.1,
               ),
             ),
           ],

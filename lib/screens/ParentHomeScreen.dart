@@ -18,6 +18,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
   static const Color _kTextMain = Color(0xFF101828);
 
+  static const bool isTestingMode = false;
+
   final user = FirebaseAuth.instance.currentUser;
 
   String get _phoneDocId => user?.email?.split('@')[0] ?? "";
@@ -38,25 +40,23 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     final now = DateTime.now();
     final currentHour = now.hour;
 
-    // Determine Target Date (7 PM or later marks for tomorrow)
-    DateTime targetDate = (currentHour >= 19)
-        ? now.add(const Duration(days: 1))
-        : now;
+    DateTime targetDate = isTestingMode
+        ? now
+        : (currentHour >= 19 ? now.add(const Duration(days: 1)) : now);
+        
     String formattedDate =
         "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
 
     WriteBatch batch = FirebaseFirestore.instance.batch();
 
-    DocumentReference studentRef = FirebaseFirestore.instance
-        .collection('Students')
-        .doc(studentId);
-    DocumentReference attendanceRef = FirebaseFirestore.instance
-        .collection('Attendance')
-        .doc(formattedDate)
-        .collection('PresentStudents')
-        .doc(studentId);
+    DocumentReference studentRef = FirebaseFirestore.instance.collection('Students').doc(studentId);
+    DocumentReference attendanceRef = FirebaseFirestore.instance.collection('Attendance').doc(formattedDate).collection('PresentStudents').doc(studentId);
 
-    batch.update(studentRef, {'attendanceStatus': newStatus});
+    // ✅ ADDED: 'lastAttendanceDate' to remember WHICH day this status is for
+    batch.update(studentRef, {
+      'attendanceStatus': newStatus,
+      'lastAttendanceDate': formattedDate, 
+    });
 
     if (newStatus == 'حاضر') {
       batch.set(attendanceRef, {
@@ -71,16 +71,11 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     try {
       await batch.commit();
       if (mounted) {
-        // Show Hijri date in success message too
         var hDate = HijriCalendar.fromDate(targetDate);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'تم التحديث ليوم ${hDate.hDay} ${hDate.longMonthName}',
-            ),
-            backgroundColor: newStatus == 'حاضر'
-                ? Colors.green
-                : Colors.redAccent,
+            content: Text('تم التحديث ليوم ${hDate.hDay} ${hDate.longMonthName}'),
+            backgroundColor: newStatus == 'حاضر' ? Colors.green : Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -340,23 +335,31 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     );
   }
 
-  Widget _buildAttendanceCard(
+ Widget _buildAttendanceCard(
     BuildContext context,
     String studentId,
     Map<String, dynamic> data,
   ) {
-    String currentStatus = data['attendanceStatus'] ?? 'غائب';
-    String name = (data['StudentName_ar'] ?? data['StudentName'] ?? '')
-        .toString();
+    String name = (data['StudentName_ar'] ?? data['StudentName'] ?? '').toString();
 
     // Time & Date Logic
     final now = DateTime.now();
     int hour = now.hour;
-    bool isTimeExpired = !(hour >= 19 || hour < 5);
 
-    // Get Target Hijri Date
+    bool isTimeExpired = isTestingMode ? false : !(hour >= 19 || hour < 5);
+
     DateTime targetDate = (hour >= 19) ? now.add(const Duration(days: 1)) : now;
-    HijriCalendar.setLocal('ar'); // Set calendar to Arabic
+    
+    // ✅ SMART RESET LOGIC: Check if the status belongs to the upcoming trip
+    String targetFormattedDate = "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
+    String lastSavedDate = data['lastAttendanceDate'] ?? '';
+    
+    // If the dates match, show what's in DB. If it's a new day, default to 'غائب'
+    String currentStatus = (lastSavedDate == targetFormattedDate) 
+        ? (data['attendanceStatus'] ?? 'غائب') 
+        : 'غائب';
+
+    HijriCalendar.setLocal('ar'); 
     var hDate = HijriCalendar.fromDate(targetDate);
     String hijriLabel = "${hDate.hDay} ${hDate.longMonthName}";
 
@@ -388,11 +391,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   children: [
                     Text(
                       name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: _kHeaderBlue,
-                        fontSize: 14,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w900, color: _kHeaderBlue, fontSize: 14),
                     ),
                     const Text(
                       "اضغط لعرض الملف الشخصي",
@@ -401,7 +400,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                   ],
                 ),
               ),
-              // Date Label + Centered Toggle
               Column(
                 children: [
                   Text(
@@ -419,9 +417,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                     decoration: BoxDecoration(
                       color: isTimeExpired
                           ? Colors.grey.shade400
-                          : (currentStatus == 'غائب'
-                                ? Colors.redAccent
-                                : Colors.green),
+                          : (currentStatus == 'غائب' ? Colors.redAccent : Colors.green),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -434,11 +430,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                         onChanged: isTimeExpired
                             ? (val) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'التعديل متاح من 7:00 م حتى 5:00 ص',
-                                    ),
-                                  ),
+                                  const SnackBar(content: Text('التعديل متاح من 7:00 م حتى 5:00 ص')),
                                 );
                               }
                             : (String? newValue) {
@@ -459,9 +451,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                               style: TextStyle(
                                 color: isTimeExpired
                                     ? Colors.grey
-                                    : (value == 'غائب'
-                                          ? Colors.redAccent
-                                          : Colors.green),
+                                    : (value == 'غائب' ? Colors.redAccent : Colors.green),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -469,18 +459,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                           );
                         }).toList(),
                         selectedItemBuilder: (context) => ['حاضر', 'غائب']
-                            .map(
-                              (v) => Center(
-                                child: Text(
-                                  v,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
+                            .map((v) => Center(
+                                  child: Text(
+                                    v,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
-                                ),
-                              ),
-                            )
+                                ))
                             .toList(),
                       ),
                     ),

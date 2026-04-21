@@ -1,4 +1,5 @@
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart'; // Needed for kIsWeb
 import 'trip_pins_service.dart';
 
 class TripNavigationService {
@@ -11,7 +12,15 @@ class TripNavigationService {
     required SchoolModel school,
     required bool isMorningTrip,
   }) async {
-    if (students.isEmpty && !isMorningTrip) return;
+    
+    // If no students are present, but it's a morning trip, route the driver straight to school
+    if (students.isEmpty) {
+      if (isMorningTrip) {
+        await _launchGoogleMaps('$driverLat,$driverLng', '${school.lat},${school.lng}', '');
+        currentBatchIndex = 999; // Mark as finished
+      }
+      return;
+    }
 
     // Calculate how many students we've already dealt with
     int studentsRouted = currentBatchIndex * 9;
@@ -20,7 +29,7 @@ class TripNavigationService {
     // If all students are done but it's morning, route directly to School
     if (remainingStudents.isEmpty && isMorningTrip) {
       await _launchGoogleMaps('$driverLat,$driverLng', '${school.lat},${school.lng}', '');
-      currentBatchIndex = 999; // Finished
+      currentBatchIndex = 999; 
       return;
     }
 
@@ -53,15 +62,22 @@ class TripNavigationService {
   }
 
   Future<void> _launchGoogleMaps(String origin, String dest, String ways) async {
-    // Official Google Maps URL scheme
-    String url = 'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving&dir_action=navigate';
-    if (ways.isNotEmpty) url += '&waypoints=$ways';
+    // ✅ OFFICIAL UNIVERSAL GOOGLE MAPS URL
+    String url = 'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest';
+    if (ways.isNotEmpty) {
+      url += '&waypoints=$ways';
+    }
     
     final Uri uri = Uri.parse(url);
+    
+    // ✅ Smart Launch Mode: Opens new tab on Web, opens Maps App on Emulator/Phone
+    LaunchMode mode = kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication;
+
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await launchUrl(uri, mode: mode);
     } else {
-      throw 'Could not launch Google Maps';
+      // Fallback if the emulator doesn't have Google Maps installed (opens in browser)
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
     }
   }
 }

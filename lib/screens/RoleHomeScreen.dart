@@ -211,7 +211,7 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
             } else if (role == "parent") {
               Navigator.pushReplacementNamed(context, '/parent_home');
             } else if (role == "driver") {
-              Navigator.pushReplacementNamed(context, '/DriverHome');
+              Navigator.pushReplacementNamed(context, '/driver_home');
             }
           }
         },
