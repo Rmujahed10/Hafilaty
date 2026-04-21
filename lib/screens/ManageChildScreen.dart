@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class ManageChildScreen extends StatefulWidget {
   const ManageChildScreen({super.key});
@@ -132,8 +134,9 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                       currentStatus = "جارٍ التحميل...";
                                     } else if (attSnap.hasData &&
                                         attSnap.data!.exists) {
-                                      final attData = attSnap.data!.data()
-                                          as Map<String, dynamic>;
+                                      final attData =
+                                          attSnap.data!.data()
+                                              as Map<String, dynamic>;
                                       currentStatus =
                                           (attData['attendanceStatus'] ??
                                                   "غائب")
@@ -154,10 +157,14 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                 Material(
                                   color: Colors.transparent,
                                   child: InkWell(
-                                    onTap: () => _showQrCodeDialog(context, studentId),
+                                    onTap: () =>
+                                        _showQrCodeDialog(context, studentId),
                                     borderRadius: BorderRadius.circular(12),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                        horizontal: 16,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFF8FAFC),
                                         borderRadius: BorderRadius.circular(12),
@@ -167,7 +174,8 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                         ),
                                       ),
                                       child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           const Icon(
                                             Icons.qr_code_2_rounded,
@@ -188,10 +196,10 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                                     ),
                                   ),
                                 ),
+
                                 // --------------------------------------------------
                                 // ✅✅✅ نهاية زر الباركود
                                 // --------------------------------------------------
-
                                 const SizedBox(height: 24),
 
                                 const Align(
@@ -285,9 +293,9 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // ✅✅✅ رسالة التنبيه
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -323,7 +331,7 @@ class _ManageChildScreenState extends State<ManageChildScreen> {
                   ),
 
                   const SizedBox(height: 24),
-                  
+
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -435,8 +443,8 @@ class AttendanceStatusPill extends StatelessWidget {
     final Color bg = isPresent
         ? const Color(0xFFB7E4C7)
         : isAbsent
-            ? const Color(0xFFF3B7B7)
-            : const Color(0xFFE5E7EB);
+        ? const Color(0xFFF3B7B7)
+        : const Color(0xFFE5E7EB);
 
     return Container(
       width: double.infinity,
@@ -554,45 +562,82 @@ class _UserAvatarFromFirestore extends StatelessWidget {
   }
 
   Widget _fallbackAvatar() => Container(
-        width: 120,
-        height: 120,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE6E6E6),
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(Icons.person, size: 60, color: Colors.white),
-      );
+    width: 120,
+    height: 120,
+    decoration: const BoxDecoration(
+      color: Color(0xFFE6E6E6),
+      shape: BoxShape.circle,
+    ),
+    alignment: Alignment.center,
+    child: const Icon(Icons.person, size: 60, color: Colors.white),
+  );
 }
 
-class _MapPreview extends StatelessWidget {
+class _MapPreview extends StatefulWidget {
   const _MapPreview();
 
   @override
+  State<_MapPreview> createState() => _MapPreviewState();
+}
+
+class _MapPreviewState extends State<_MapPreview> {
+  GoogleMapController? _mapController;
+
+  // معرف الباص كما يظهر في صورتك (يمكنك تمريره كمتغير لاحقاً)
+  final String BusID = "Bus_32438_101";
+
+  @override
   Widget build(BuildContext context) {
-    const url = "https://maps.gstatic.com/tactile/basepage/pegman_sherlock.png";
     return Container(
-      height: 150,
+      height: 200,
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: const Color(0xFFEDEFF2),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Image.network(
-        url,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: const Color(0xFFEDEFF2),
-          alignment: Alignment.center,
-          child: const Text(
-            "الخريطة غير متاحة حالياً",
-            style: TextStyle(
-              color: Color(0xFF475467),
-              fontWeight: FontWeight.w800,
+      // الـ StreamBuilder يراقب التغيرات في السطرين lat و lng بلقطة شاشة Firebase
+      child: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('Buses') // لاحظ الحرف الكبير B كما في صورتك
+            .doc(BusID)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text("حدث خطأ في جلب البيانات"));
+          }
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // جلب البيانات بناءً على الحقول في صورتك: lat و lng
+          var data = snapshot.data!.data() as Map<String, dynamic>;
+          double lat = data['lat'];
+          double lng = data['lng'];
+          LatLng busLocation = LatLng(lat, lng);
+
+          // تحديث الكاميرا تلقائياً عند تحرك الباص
+          _mapController?.animateCamera(CameraUpdate.newLatLng(busLocation));
+
+          return GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: busLocation,
+              zoom: 15.0,
             ),
-          ),
-        ),
+            onMapCreated: (controller) => _mapController = controller,
+            // تأكد من عدم وجود كلمة const هنا لتجنب الخطأ السابق
+            markers: {
+              Marker(
+                markerId: const MarkerId('bus_marker'),
+                position: busLocation,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure,
+                ),
+                infoWindow: const InfoWindow(title: 'موقع حافلة طفلي'),
+              ),
+            },
+          );
+        },
       ),
     );
   }

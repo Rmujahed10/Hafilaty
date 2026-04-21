@@ -47,7 +47,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
   StreamSubscription<Position>? _positionStreamSubscription;
   Marker? _busMarker;
   LatLng? _currentBusLocation;
-  
+
   // ✅ State variable for Real ETA
   String _estimatedTime = "جاري الحساب...";
 
@@ -80,15 +80,18 @@ class _TripMapScreenState extends State<TripMapScreen> {
         _currentBusLocation = _initialPosition;
       }
 
-      // 2. Fetch the School 
-      _schoolModel = await _tripPinsService.getSchoolLocationForBus(widget.busId);
-      
+      // 2. Fetch the School
+      _schoolModel = await _tripPinsService.getSchoolLocationForBus(
+        widget.busId,
+      );
+
       if (_schoolModel == null) {
         debugPrint("CRITICAL: School model returned null from service.");
       }
 
       // 3. Fetch Students
-      final List<StudentPinModel> rawStudents = await _tripPinsService.getPresentStudentsData(widget.busId);
+      final List<StudentPinModel> rawStudents = await _tripPinsService
+          .getPresentStudentsData(widget.busId);
       final List<StudentPinModel> presentStudents = rawStudents.where((s) {
         return s.lat != 0.0 && s.lng != 0.0;
       }).toList();
@@ -100,7 +103,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
           Marker(
             markerId: const MarkerId("school_pin"),
             position: LatLng(_schoolModel!.lat, _schoolModel!.lng),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
             infoWindow: const InfoWindow(title: "المدرسة"),
           ),
         );
@@ -135,7 +140,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
     final controller = await _mapController.future;
     final positions = _markers.map((m) => m.position).toList();
     double minLat = positions.first.latitude, maxLat = positions.first.latitude;
-    double minLng = positions.first.longitude, maxLng = positions.first.longitude;
+    double minLng = positions.first.longitude,
+        maxLng = positions.first.longitude;
 
     for (final pos in positions) {
       if (pos.latitude < minLat) minLat = pos.latitude;
@@ -161,37 +167,58 @@ class _TripMapScreenState extends State<TripMapScreen> {
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 10,
+            distanceFilter: 10, // يحدث الموقع كل 10 أمتار
           ),
         ).listen((Position position) {
           LatLng newLocation = LatLng(position.latitude, position.longitude);
+
+          // 1. تحديث الخريطة أمام السائق الآن
           if (mounted) {
             setState(() {
               _currentBusLocation = newLocation;
               _busMarker = Marker(
                 markerId: const MarkerId("bus_location"),
                 position: newLocation,
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueBlue,
+                ),
                 infoWindow: const InfoWindow(title: "موقعي الحالي"),
               );
               _markers.removeWhere((m) => m.markerId.value == "bus_location");
               _markers.add(_busMarker!);
             });
           }
+
+          // 2. 🔥 الجزء الأهم: إرسال الموقع لـ Firebase ليراه الأب
+          FirebaseFirestore.instance.collection('Buses').doc(widget.busId).set(
+            {
+              'lat': position.latitude,
+              'lng': position.longitude,
+              'LastUpdated':
+                  FieldValue.serverTimestamp(), // تحديث الوقت تلقائياً
+            },
+            SetOptions(merge: true),
+          ); // استخدام merge للحفاظ على باقي بيانات الباص
+
+          debugPrint(
+            "✅ تم إرسال الموقع لـ Firebase: ${position.latitude}, ${position.longitude}",
+          );
         });
   }
 
-Future<void> _handleTripAction() async {
+  Future<void> _handleTripAction() async {
     if (widget.busId.isEmpty) return;
 
     try {
       // 1. Navigation Guard
       if (_schoolModel == null || _currentBusLocation == null) {
-        debugPrint("Missing Data. School: ${_schoolModel != null}, Location: ${_currentBusLocation != null}");
+        debugPrint(
+          "Missing Data. School: ${_schoolModel != null}, Location: ${_currentBusLocation != null}",
+        );
         return;
       }
 
-      // ✅ 2. LAUNCH MAPS IMMEDIATELY! 
+      // ✅ 2. LAUNCH MAPS IMMEDIATELY!
       // Do this BEFORE the database update so Chrome doesn't block the pop-up.
       // We use the already-tracked _currentBusLocation to eliminate GPS delay.
       await _tripNavigationService.startSmartNavigation(
@@ -203,41 +230,52 @@ Future<void> _handleTripAction() async {
       );
 
       // 3. Update Status in the background (Don't await it to block the UI)
-      if (_tripNavigationService.currentBatchIndex == 0 || _tripNavigationService.currentBatchIndex == 1) {
-        _updateBusStatus("جارية الآن"); // Fires off to Firestore in the background
-        
+      if (_tripNavigationService.currentBatchIndex == 0 ||
+          _tripNavigationService.currentBatchIndex == 1) {
+        _updateBusStatus(
+          "جارية الآن",
+        ); // Fires off to Firestore in the background
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("تم بدء الرحلة بنجاح")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("تم بدء الرحلة بنجاح")));
         }
       }
-      
+
       if (mounted) setState(() {});
-      
     } catch (e) {
       debugPrint("START_TRIP_ACTION_ERROR: $e");
     }
   }
 
   Future<void> _getRoutePolyline() async {
-    if (_students.isEmpty || _schoolModel == null || _currentBusLocation == null) return;
+    if (_students.isEmpty ||
+        _schoolModel == null ||
+        _currentBusLocation == null)
+      return;
 
     try {
-      PointLatLng origin = PointLatLng(_currentBusLocation!.latitude, _currentBusLocation!.longitude);
+      PointLatLng origin = PointLatLng(
+        _currentBusLocation!.latitude,
+        _currentBusLocation!.longitude,
+      );
       PointLatLng destination = widget.isMorningTrip
           ? PointLatLng(_schoolModel!.lat, _schoolModel!.lng)
           : PointLatLng(_students.last.lat, _students.last.lng);
 
-      List<PolylineWayPoint> wayPoints = _students.map((s) => PolylineWayPoint(location: "${s.lat},${s.lng}")).toList();
-      
+      List<PolylineWayPoint> wayPoints = _students
+          .map((s) => PolylineWayPoint(location: "${s.lat},${s.lng}"))
+          .toList();
+
       // ✅ 1. Calculate Real ETA via Google Directions API
       String originStr = "${origin.latitude},${origin.longitude}";
       String destStr = "${destination.latitude},${destination.longitude}";
       String wayStr = wayPoints.map((w) => w.location).join('|');
       String apiKey = 'AIzaSyASw9kOAjo6lWB5OX7oFFGU40CCGFPVJYY';
 
-      String url = "https://maps.googleapis.com/maps/api/directions/json?origin=$originStr&destination=$destStr&waypoints=$wayStr&mode=driving&optimizeWaypoints=true&key=$apiKey";
+      String url =
+          "https://maps.googleapis.com/maps/api/directions/json?origin=$originStr&destination=$destStr&waypoints=$wayStr&mode=driving&optimizeWaypoints=true&key=$apiKey";
 
       try {
         final response = await http.get(Uri.parse(url));
@@ -254,7 +292,7 @@ Future<void> _handleTripAction() async {
         }
       } catch (e) {
         debugPrint("HTTP ETA Error (CORS): $e");
-        
+
         // ✅ SMART FALLBACK FOR WEB TESTING
         // If Chrome blocks Google API, we calculate it mathematically!
         double totalDistanceMeters = 0.0;
@@ -263,15 +301,26 @@ Future<void> _handleTripAction() async {
         // Add up distance between all waypoints
         for (var wp in wayPoints) {
           var parts = wp.location.split(',');
-          LatLng current = LatLng(double.parse(parts[0]), double.parse(parts[1]));
+          LatLng current = LatLng(
+            double.parse(parts[0]),
+            double.parse(parts[1]),
+          );
           totalDistanceMeters += Geolocator.distanceBetween(
-              previous.latitude, previous.longitude, current.latitude, current.longitude);
+            previous.latitude,
+            previous.longitude,
+            current.latitude,
+            current.longitude,
+          );
           previous = current;
         }
 
         // Add distance from last waypoint to destination
         totalDistanceMeters += Geolocator.distanceBetween(
-            previous.latitude, previous.longitude, destination.latitude, destination.longitude);
+          previous.latitude,
+          previous.longitude,
+          destination.latitude,
+          destination.longitude,
+        );
 
         // Assume average city bus speed of 30 km/h (8.33 meters/second)
         // Multiply distance by 1.4 to account for road curves instead of a straight line
@@ -280,17 +329,18 @@ Future<void> _handleTripAction() async {
 
         if (totalMinutes < 1) totalMinutes = 1;
 
-        if (mounted) setState(() => _estimatedTime = "حوالي $totalMinutes دقيقة");
+        if (mounted)
+          setState(() => _estimatedTime = "حوالي $totalMinutes دقيقة");
       }
 
       // ✅ 2. Draw the Route on Map
       PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
         request: PolylineRequest(
-          origin: origin, 
-          destination: destination, 
-          mode: TravelMode.driving, 
-          wayPoints: wayPoints, 
-          optimizeWaypoints: true
+          origin: origin,
+          destination: destination,
+          mode: TravelMode.driving,
+          wayPoints: wayPoints,
+          optimizeWaypoints: true,
         ),
       );
 
@@ -298,12 +348,16 @@ Future<void> _handleTripAction() async {
         if (mounted) {
           setState(() {
             _polylines.clear();
-            _polylines.add(Polyline(
-              polylineId: const PolylineId("route"), 
-              color: const Color(0xFF0D1B36), 
-              width: 5, 
-              points: result.points.map((p) => LatLng(p.latitude, p.longitude)).toList()
-            ));
+            _polylines.add(
+              Polyline(
+                polylineId: const PolylineId("route"),
+                color: const Color(0xFF0D1B36),
+                width: 5,
+                points: result.points
+                    .map((p) => LatLng(p.latitude, p.longitude))
+                    .toList(),
+              ),
+            );
           });
         }
       }
@@ -386,10 +440,10 @@ Future<void> _handleTripAction() async {
             ],
           ),
           const SizedBox(height: 15),
-          
+
           // ✅ Real ETA displayed here
           _buildInfoRow(Icons.access_time, "الوقت المتوقع: $_estimatedTime"),
-          
+
           _buildColoredInfoRow(
             'assets/placeholder.png',
             "عدد التوقفات: ${_students.length}",
