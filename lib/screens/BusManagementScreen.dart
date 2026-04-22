@@ -344,22 +344,38 @@ Widget _buildBusList() {
             final data = buses[index].data() as Map<String, dynamic>;
             final busDocId = buses[index].id;
             
-            // ✅ Robust Driver Check: Look for DriverName OR DriverID
-            String? driverBadgeText = data['DriverName'];
-            if (driverBadgeText == null || driverBadgeText.isEmpty) {
-              if (data['DriverID'] != null && data['DriverID'].toString().isNotEmpty) {
-                driverBadgeText = data['DriverID']; // Fallback to ID/Phone if name is missing
-              }
-            }
-            
-            return _BusCardItem(
-              busNumber: data['BusNumber'] ?? 0,
-              totalStudents: data['TotalStudents'] ?? 0,
-              capacity: _kBusCapacity,
-              isFull: (data['TotalStudents'] ?? 0) >= _kBusCapacity,
-              driverName: driverBadgeText, // ✅ Pass the robust check result
-              onAssignDriver: () => _assignDriverToBus(busDocId),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetManagementScreen())),
+            // 🔥 NEW: Fetch the driver from the 'users' collection instead of 'Buses'
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .where('role', isEqualTo: 'driver')
+                  .where('AssignedBusID', isEqualTo: busDocId)
+                  .snapshots(),
+              builder: (context, driverSnap) {
+                String? driverBadgeText;
+
+                // Check if a driver was found with this bus ID
+                if (driverSnap.hasData && driverSnap.data!.docs.isNotEmpty) {
+                  final driverData = driverSnap.data!.docs.first.data() as Map<String, dynamic>;
+                  
+                  final firstName = driverData.containsKey('firstName') ? driverData['firstName'] : '';
+                  final lastName = driverData.containsKey('lastName') ? driverData['lastName'] : '';
+                  final fullName = "$firstName $lastName".trim();
+
+                  // Fallback to phone number if they didn't set a name
+                  driverBadgeText = fullName.isNotEmpty ? fullName : (driverData['phone'] ?? 'سائق');
+                }
+                
+                return _BusCardItem(
+                  busNumber: data['BusNumber'] ?? 0,
+                  totalStudents: data['TotalStudents'] ?? 0,
+                  capacity: _kBusCapacity,
+                  isFull: (data['TotalStudents'] ?? 0) >= _kBusCapacity,
+                  driverName: driverBadgeText, // ✅ Now strictly driven by the users collection
+                  onAssignDriver: () => _assignDriverToBus(busDocId),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetManagementScreen())),
+                );
+              },
             );
           },
         );

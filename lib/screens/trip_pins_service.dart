@@ -101,7 +101,9 @@ Future<SchoolModel?> getSchoolLocationForBus(String busId) async {
           .where((student) => busId.contains(student.busIdInDoc) && student.busIdInDoc.isNotEmpty)
           .toList();
     } catch (e) {
-      print("Error fetching students: $e");
+      if (kDebugMode) {
+        print("Error fetching students: $e");
+      }
       return [];
     }
   }

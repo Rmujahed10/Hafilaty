@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,7 +24,9 @@ import 'screens/DriverHomeScreen.dart';
 /// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print("Background message received: ${message.messageId}");
+  if (kDebugMode) {
+    print("Background message received: ${message.messageId}");
+  }
 }
 
 /// 🔔 طلب إذن الإشعارات
@@ -37,9 +40,13 @@ Future<void> requestNotificationPermission() async {
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    print("User granted notification permission");
+    if (kDebugMode) {
+      print("User granted notification permission");
+    }
   } else {
-    print("User denied notification permission");
+    if (kDebugMode) {
+      print("User denied notification permission");
+    }
   }
 }
 

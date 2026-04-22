@@ -1,5 +1,4 @@
 # Deploy with `firebase deploy --only functions`
-
 from firebase_functions import firestore_fn
 from firebase_admin import initialize_app, firestore
 import pandas as pd
@@ -46,13 +45,48 @@ def run_capacitated_clustering(df, n_clusters, bus_capacity):
             df.at[furthest_idx, 'BusID'] = new_bus_id
     return df
 
+def cleanup_ghost_drivers(school_id_int):
+    """
+    Cleanup Phase: Scans for drivers holding onto deleted bus IDs and unassigns them.
+    Ensures the 'users' collection Source of Truth stays clean.
+    """
+    db = firestore.client()
+    
+    # 1. Get a list of all VALID buses that survived the clustering for this school
+    valid_buses_query = db.collection('Buses').where('SchoolID', '==', school_id_int).stream()
+    valid_bus_ids = [bus.id for bus in valid_buses_query]
+    
+    # 2. Get all users who are drivers
+    drivers_query = db.collection('users').where('role', '==', 'driver').stream()
+    
+    # 3. Prepare a batch operation for efficiency
+    cleanup_batch = db.batch()
+    cleanup_count = 0
+    
+    for driver in drivers_query:
+        driver_data = driver.to_dict()
+        assigned_bus = driver_data.get('AssignedBusID')
+        
+        # If they have an assigned bus, but it's NOT in the valid buses list anymore...
+        if assigned_bus and assigned_bus not in valid_bus_ids:
+            driver_ref = db.collection('users').document(driver.id)
+            cleanup_batch.update(driver_ref, {
+                'AssignedBusID': ""
+            })
+            cleanup_count += 1
+            
+    # 4. Commit the changes to Firestore
+    if cleanup_count > 0:
+        cleanup_batch.commit()
+        print(f"🧹 Successfully cleaned up and freed {cleanup_count} driver(s).")
+    else:
+        print("✅ No ghost drivers needed cleaning.")
+
 def reoptimize_school_routes(school_id):
     """Helper Function: Cleans old data and re-calculates bus assignments"""
     db = firestore.client()
 
     # --- DATA TYPE FIX ---
-    # Firestore Document Paths REQUIRE a string.
-    # Firestore Queries (where) REQUIRE the exact type in the DB (int).
     doc_path_id = str(school_id)
     try:
         numeric_search_id = int(school_id)
@@ -120,7 +154,7 @@ def reoptimize_school_routes(school_id):
             student_ref = db.collection("Students").document(doc_id)
             batch.update(student_ref, {"BusID": str(friendly_bus_number)})
 
-        # ✅ Retrieve driver info if it existed for this bus number
+        # Retrieve driver info if it existed for this bus number
         old_driver_info = driver_mapping.get(friendly_bus_number, {})
 
         bus_data = {
@@ -129,11 +163,12 @@ def reoptimize_school_routes(school_id):
             "StudentList": unique_student_ids,
             "StudentNames": list(set(group['StudentName'].tolist())) if 'StudentName' in group else [],
             "TotalStudents": len(unique_student_ids),
-            "tripStatus": "لم تبدأ",
+            "morningTripStatus": "لم تبدأ",
+            "afternoonTripStatus": "لم تبدأ",
             "LastUpdated": firestore.SERVER_TIMESTAMP
         }
 
-        # ✅ Re-attach driver if they existed
+        # Re-attach driver if they existed
         if old_driver_info:
             bus_data["DriverID"] = old_driver_info.get("DriverID")
             bus_data["DriverName"] = old_driver_info.get("DriverName")
@@ -141,8 +176,13 @@ def reoptimize_school_routes(school_id):
         bus_ref = db.collection("Buses").document(bus_doc_id)
         batch.set(bus_ref, bus_data)
 
+    # Commit all cluster changes
     batch.commit()
     print(f"Clean optimization successful for school {numeric_search_id}. IDs start at 101.")
+
+    # 6. 🔥 FINAL STEP: Clean up ghost drivers now that the new buses are written
+    cleanup_ghost_drivers(numeric_search_id)
+
 
 # --- TRIGGERS ---
 

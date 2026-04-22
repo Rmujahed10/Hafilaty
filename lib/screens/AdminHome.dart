@@ -222,13 +222,14 @@ class _AdminHomeState extends State<AdminHome> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final busDocs = snapshot.data!.docs;
-        if (busDocs.isEmpty)
+        if (busDocs.isEmpty) {
           return const Center(
             child: Text(
               "لا توجد حافلات",
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           );
+        }
 
         return GridView.builder(
           shrinkWrap: true,
@@ -296,7 +297,7 @@ class _AdminHomeState extends State<AdminHome> {
           .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Align(
             alignment: Alignment.centerRight,
             child: Text(
@@ -304,6 +305,7 @@ class _AdminHomeState extends State<AdminHome> {
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
           );
+        }
         return Column(
           children: snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -337,7 +339,7 @@ class _AdminHomeState extends State<AdminHome> {
                     ),
                     const Spacer(),
                     const Icon(
-                      Icons.arrow_back_ios,
+                      Icons.arrow_forward_ios,
                       size: 14,
                       color: Colors.grey,
                     ),

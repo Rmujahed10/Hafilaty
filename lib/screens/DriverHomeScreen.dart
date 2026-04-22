@@ -18,7 +18,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
   String? assignedBusId;
   bool isLoadingBus = true;
-  static const bool isTestingMode = false;
+  static const bool isTestingMode = true;
 
   @override
   void initState() {

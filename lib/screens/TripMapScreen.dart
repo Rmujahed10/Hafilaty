@@ -1,12 +1,13 @@
-// ignore_for_file: file_names
+// ignore_for_file: file_names, deprecated_member_use
 import 'dart:async';
-import 'dart:convert'; // ✅ Added for JSON parsing
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:http/http.dart' as http; // ✅ Added for direct API calls
+import 'package:http/http.dart' as http;
+import 'package:mobile_scanner/mobile_scanner.dart'; // ✅ Added for scanner
 import 'dart:ui' as ui;
 
 import 'TripDetailsScreen.dart';
@@ -31,6 +32,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
   static const LatLng _initialPosition = LatLng(21.4858, 39.1925);
+  bool _isShowingArrivalDialog = false; // ✅ The Safety Lock
 
   final Completer<GoogleMapController> _mapController = Completer();
   final TripPinsService _tripPinsService = TripPinsService();
@@ -48,8 +50,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
   Marker? _busMarker;
   LatLng? _currentBusLocation;
 
-  // ✅ State variable for Real ETA
   String _estimatedTime = "جاري الحساب...";
+
+  // ✅ New state to track scanned students
+  final Set<String> _scannedStudentIds = {};
 
   @override
   void initState() {
@@ -64,13 +68,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
     super.dispose();
   }
 
+  // ... (Keep _loadTripData and _fitMapToMarkers exactly as you have them)
   Future<void> _loadTripData() async {
     try {
       if (widget.busId.isEmpty) return;
-
-      // 1. Safely handle Web GPS Restrictions
       try {
         Position position = await Geolocator.getCurrentPosition(
+          // ignore: duplicate_ignore
+          // ignore: deprecated_member_use
           desiredAccuracy: LocationAccuracy.high,
           timeLimit: const Duration(seconds: 5),
         );
@@ -79,25 +84,18 @@ class _TripMapScreenState extends State<TripMapScreen> {
         debugPrint("GPS Blocked (Web). Using fallback location. Error: $e");
         _currentBusLocation = _initialPosition;
       }
-
-      // 2. Fetch the School
       _schoolModel = await _tripPinsService.getSchoolLocationForBus(
         widget.busId,
       );
-
       if (_schoolModel == null) {
-        debugPrint("CRITICAL: School model returned null from service.");
+        debugPrint("CRITICAL: School model returned null.");
       }
-
-      // 3. Fetch Students
       final List<StudentPinModel> rawStudents = await _tripPinsService
           .getPresentStudentsData(widget.busId);
-      final List<StudentPinModel> presentStudents = rawStudents.where((s) {
-        return s.lat != 0.0 && s.lng != 0.0;
-      }).toList();
-
+      final List<StudentPinModel> presentStudents = rawStudents
+          .where((s) => s.lat != 0.0 && s.lng != 0.0)
+          .toList();
       final markers = _tripPinsService.getMarkersFromList(presentStudents);
-
       if (_schoolModel != null) {
         markers.add(
           Marker(
@@ -110,7 +108,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
           ),
         );
       }
-
       _busMarker = Marker(
         markerId: const MarkerId("bus_location"),
         position: _currentBusLocation!,
@@ -118,14 +115,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
         infoWindow: const InfoWindow(title: "موقعي الحالي"),
       );
       markers.add(_busMarker!);
-
       if (mounted) {
         setState(() {
           _students = presentStudents;
           _markers = markers;
         });
       }
-
       if (_students.isNotEmpty) {
         await _getRoutePolyline();
         await _fitMapToMarkers();
@@ -142,7 +137,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     double minLat = positions.first.latitude, maxLat = positions.first.latitude;
     double minLng = positions.first.longitude,
         maxLng = positions.first.longitude;
-
     for (final pos in positions) {
       if (pos.latitude < minLat) minLat = pos.latitude;
       if (pos.latitude > maxLat) maxLat = pos.latitude;
@@ -167,12 +161,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 10, // يحدث الموقع كل 10 أمتار
+            distanceFilter: 10,
           ),
         ).listen((Position position) {
           LatLng newLocation = LatLng(position.latitude, position.longitude);
 
-          // 1. تحديث الخريطة أمام السائق الآن
+          // 1. Update Map for Driver
           if (mounted) {
             setState(() {
               _currentBusLocation = newLocation;
@@ -189,38 +183,169 @@ class _TripMapScreenState extends State<TripMapScreen> {
             });
           }
 
-          // 2. 🔥 الجزء الأهم: إرسال الموقع لـ Firebase ليراه الأب
-          FirebaseFirestore.instance.collection('Buses').doc(widget.busId).set(
-            {
-              'lat': position.latitude,
-              'lng': position.longitude,
-              'LastUpdated':
-                  FieldValue.serverTimestamp(), // تحديث الوقت تلقائياً
-            },
-            SetOptions(merge: true),
-          ); // استخدام merge للحفاظ على باقي بيانات الباص
+          // 2. 🔥 Your Feature: Send coordinates to Firebase for the Parent
+          FirebaseFirestore.instance.collection('Buses').doc(widget.busId).set({
+            'lat': position.latitude,
+            'lng': position.longitude,
+            'LastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-          debugPrint(
-            "✅ تم إرسال الموقع لـ Firebase: ${position.latitude}, ${position.longitude}",
-          );
+          // 3. ✅ New Feature: Check if bus arrived at a student's house (50m)
+          _checkArrivalProximity(newLocation);
         });
   }
 
-  Future<void> _handleTripAction() async {
-    if (widget.busId.isEmpty) return;
+  // ============================================================
+  // ✅ INTEGRATED GEOFENCING LOGIC
+  // ============================================================
+  void _checkArrivalProximity(LatLng currentLoc) {
+    // If we are already showing a dialog, stop right here!
+    if (_isShowingArrivalDialog) return;
 
-    try {
-      // 1. Navigation Guard
-      if (_schoolModel == null || _currentBusLocation == null) {
-        debugPrint(
-          "Missing Data. School: ${_schoolModel != null}, Location: ${_currentBusLocation != null}",
-        );
-        return;
+    for (var student in _students) {
+      if (_scannedStudentIds.contains(student.studentId)) continue;
+
+      double distance = Geolocator.distanceBetween(
+        currentLoc.latitude,
+        currentLoc.longitude,
+        student.lat,
+        student.lng,
+      );
+
+      if (distance <= 50.0) {
+        setState(() => _isShowingArrivalDialog = true); // ✅ Lock it
+        _positionStreamSubscription?.pause();
+        _showArrivalDialog(student);
+        break;
       }
+    }
+  }
 
-      // ✅ 2. LAUNCH MAPS IMMEDIATELY!
-      // Do this BEFORE the database update so Chrome doesn't block the pop-up.
-      // We use the already-tracked _currentBusLocation to eliminate GPS delay.
+void _showArrivalDialog(StudentPinModel student) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: const Text("وصلت للموقع", textAlign: TextAlign.right),
+      content: Text("أنت الآن عند منزل الطالب: ${student.name}.\nالرجاء مسح الـ QR الخاص به.", textAlign: TextAlign.right),
+      actions: [
+        // 1. THE SKIP BUTTON
+        TextButton(
+          onPressed: () { 
+            Navigator.pop(ctx); 
+            setState(() => _isShowingArrivalDialog = false); // ✅ Unlock here
+            _positionStreamSubscription?.resume(); 
+          }, 
+          child: const Text("تخطي"),
+        ),
+        
+        // 2. THE CAMERA BUTTON
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(ctx);
+            // We DON'T unlock here yet because we are moving to the Camera screen
+            
+            final String? result = await Navigator.push(
+              context, 
+              MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+            );
+
+            // After returning from Camera:
+            setState(() => _isShowingArrivalDialog = false); // ✅ Unlock here!
+
+            if (result != null && result.trim() == student.studentId.trim()) {
+              _handleSuccessfulScan(student);
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("الرمز غير مطابق!"), backgroundColor: Colors.red),
+                );
+              }
+              _positionStreamSubscription?.resume();
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6A994E)),
+          child: const Text("فتح الكاميرا", style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+}
+
+  Future<void> _handleSuccessfulScan(StudentPinModel student) async {
+    // 1. Update Firestore
+    await FirebaseFirestore.instance
+        .collection('Students')
+        .doc(student.studentId)
+        .update({
+          'busStatus': 'في الحافلة',
+          'lastScanTime': FieldValue.serverTimestamp(),
+        });
+
+    // 2. Local Update & UI Refresh
+    if (mounted) {
+      setState(() {
+        _scannedStudentIds.add(student.studentId);
+
+        // 🔥 THIS IS THE KEY: Remove the student from the active list
+        _students.removeWhere((s) => s.studentId == student.studentId);
+
+        // Remove their marker from the map too
+        _markers.removeWhere((m) => m.markerId.value == student.studentId);
+      });
+
+      // 3. Visual Feedback (SnackBar)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("تم تأكيد صعود الطالب: ${student.name}"),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    // 4. Batch Check
+    if (_scannedStudentIds.length % 9 == 0 && _scannedStudentIds.isNotEmpty) {
+      _showBatchCompleteAlert();
+    } else {
+      // Refresh the polyline route since one stop is gone
+      _getRoutePolyline();
+      _positionStreamSubscription?.resume();
+    }
+  }
+
+  void _showBatchCompleteAlert() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("اكتملت المجموعة", textAlign: TextAlign.right),
+        content: const Text(
+          "تم جمع جميع طلاب المجموعة. اضغط 'المجموعة التالية' للبدء في المسار القادم.",
+          textAlign: TextAlign.right,
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _positionStreamSubscription?.resume();
+            },
+            child: const Text("حسناً"),
+          ),
+        ],
+      ),
+    );
+  }
+
+Future<void> _handleTripAction() async {
+    if (widget.busId.isEmpty) return;
+    try {
+      if (_schoolModel == null || _currentBusLocation == null) return;
+
+      // 1. Update the status IMMEDIATELY before leaving the app
+      _updateBusStatus("جارية الآن");
+
+      // 2. Open Google Maps
       await _tripNavigationService.startSmartNavigation(
         driverLat: _currentBusLocation!.latitude,
         driverLng: _currentBusLocation!.longitude,
@@ -228,33 +353,19 @@ class _TripMapScreenState extends State<TripMapScreen> {
         school: _schoolModel!,
         isMorningTrip: widget.isMorningTrip,
       );
-
-      // 3. Update Status in the background (Don't await it to block the UI)
-      if (_tripNavigationService.currentBatchIndex == 0 ||
-          _tripNavigationService.currentBatchIndex == 1) {
-        _updateBusStatus(
-          "جارية الآن",
-        ); // Fires off to Firestore in the background
-
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("تم بدء الرحلة بنجاح")));
-        }
-      }
-
+      
       if (mounted) setState(() {});
     } catch (e) {
-      debugPrint("START_TRIP_ACTION_ERROR: $e");
+      debugPrint("NAV_ERROR: $e");
     }
   }
 
   Future<void> _getRoutePolyline() async {
     if (_students.isEmpty ||
         _schoolModel == null ||
-        _currentBusLocation == null)
+        _currentBusLocation == null) {
       return;
-
+    }
     try {
       PointLatLng origin = PointLatLng(
         _currentBusLocation!.latitude,
@@ -263,77 +374,27 @@ class _TripMapScreenState extends State<TripMapScreen> {
       PointLatLng destination = widget.isMorningTrip
           ? PointLatLng(_schoolModel!.lat, _schoolModel!.lng)
           : PointLatLng(_students.last.lat, _students.last.lng);
-
       List<PolylineWayPoint> wayPoints = _students
           .map((s) => PolylineWayPoint(location: "${s.lat},${s.lng}"))
           .toList();
-
-      // ✅ 1. Calculate Real ETA via Google Directions API
       String originStr = "${origin.latitude},${origin.longitude}";
       String destStr = "${destination.latitude},${destination.longitude}";
       String wayStr = wayPoints.map((w) => w.location).join('|');
       String apiKey = 'AIzaSyASw9kOAjo6lWB5OX7oFFGU40CCGFPVJYY';
-
       String url =
           "https://maps.googleapis.com/maps/api/directions/json?origin=$originStr&destination=$destStr&waypoints=$wayStr&mode=driving&optimizeWaypoints=true&key=$apiKey";
-
-      try {
-        final response = await http.get(Uri.parse(url));
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['status'] == 'OK') {
-            int totalSeconds = 0;
-            for (var leg in data['routes'][0]['legs']) {
-              totalSeconds += (leg['duration']['value'] as int);
-            }
-            int totalMinutes = (totalSeconds / 60).round();
-            if (mounted) setState(() => _estimatedTime = "$totalMinutes دقيقة");
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          int totalSeconds = 0;
+          for (var leg in data['routes'][0]['legs']) {
+            totalSeconds += (leg['duration']['value'] as int);
           }
+          int totalMinutes = (totalSeconds / 60).round();
+          if (mounted) setState(() => _estimatedTime = "$totalMinutes دقيقة");
         }
-      } catch (e) {
-        debugPrint("HTTP ETA Error (CORS): $e");
-
-        // ✅ SMART FALLBACK FOR WEB TESTING
-        // If Chrome blocks Google API, we calculate it mathematically!
-        double totalDistanceMeters = 0.0;
-        LatLng previous = LatLng(origin.latitude, origin.longitude);
-
-        // Add up distance between all waypoints
-        for (var wp in wayPoints) {
-          var parts = wp.location.split(',');
-          LatLng current = LatLng(
-            double.parse(parts[0]),
-            double.parse(parts[1]),
-          );
-          totalDistanceMeters += Geolocator.distanceBetween(
-            previous.latitude,
-            previous.longitude,
-            current.latitude,
-            current.longitude,
-          );
-          previous = current;
-        }
-
-        // Add distance from last waypoint to destination
-        totalDistanceMeters += Geolocator.distanceBetween(
-          previous.latitude,
-          previous.longitude,
-          destination.latitude,
-          destination.longitude,
-        );
-
-        // Assume average city bus speed of 30 km/h (8.33 meters/second)
-        // Multiply distance by 1.4 to account for road curves instead of a straight line
-        double estimatedSeconds = (totalDistanceMeters * 1.4) / 8.33;
-        int totalMinutes = (estimatedSeconds / 60).round();
-
-        if (totalMinutes < 1) totalMinutes = 1;
-
-        if (mounted)
-          setState(() => _estimatedTime = "حوالي $totalMinutes دقيقة");
       }
-
-      // ✅ 2. Draw the Route on Map
       PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
         request: PolylineRequest(
           origin: origin,
@@ -343,7 +404,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
           optimizeWaypoints: true,
         ),
       );
-
       if (result.points.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -362,8 +422,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
         }
       }
     } catch (e) {
-      debugPrint("Polyline Error (Likely CORS on Web): $e");
-      // The ETA will still show because our Smart Fallback caught it earlier!
+      debugPrint("Polyline Error: $e");
     }
   }
 
@@ -417,7 +476,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     String buttonText = isFinished
         ? "اكتملت الرحلة"
         : (isFirstBatch ? "بدء الرحلة" : "المجموعة التالية");
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -440,10 +498,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
             ],
           ),
           const SizedBox(height: 15),
-
-          // ✅ Real ETA displayed here
           _buildInfoRow(Icons.access_time, "الوقت المتوقع: $_estimatedTime"),
-
           _buildColoredInfoRow(
             'assets/placeholder.png',
             "عدد التوقفات: ${_students.length}",
@@ -470,7 +525,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
             label: "إنهاء الرحلة",
             color: const Color(0xFFD64545),
             onPressed: () async {
-              await _updateBusStatus("لم تبدأ");
+              await _updateBusStatus("مكتملة");
               if (mounted) Navigator.pop(context);
             },
           ),
@@ -480,21 +535,19 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   Widget _buildInfoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: _kHeaderBlue),
-            const SizedBox(width: 10),
-            Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: _kHeaderBlue),
+          const SizedBox(width: 10),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
@@ -524,8 +577,42 @@ class _TripMapScreenState extends State<TripMapScreen> {
             'LastUpdated': FieldValue.serverTimestamp(),
           });
     } catch (e) {
-      debugPrint("Error updating bus status: $e");
+      debugPrint("DB Error: $e");
     }
+  }
+}
+
+// ✅ SCANNER UI CLASS
+class QRScannerScreen extends StatefulWidget {
+  const QRScannerScreen({super.key});
+  @override
+  State<QRScannerScreen> createState() => _QRScannerScreenState();
+}
+
+class _QRScannerScreenState extends State<QRScannerScreen> {
+  bool _found = false;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("مسح رمز الطالب"),
+        backgroundColor: const Color(0xFF0D1B36),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (_found) return;
+          final List<Barcode> barcodes = capture.barcodes;
+          for (final barcode in barcodes) {
+            if (barcode.rawValue != null) {
+              _found = true;
+              Navigator.pop(context, barcode.rawValue);
+              break;
+            }
+          }
+        },
+      ),
+    );
   }
 }
 
@@ -601,30 +688,19 @@ class _ActionButton extends StatelessWidget {
 }
 
 Widget _buildColoredInfoRow(String imagePath, String text) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Image.asset(
-            imagePath,
-            width: 24,
-            height: 24,
-            errorBuilder: (c, e, s) => const Icon(
-              Icons.image_not_supported,
-              size: 24,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.grey.shade300),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.people, size: 24, color: Colors.grey),
+        const SizedBox(width: 10),
+        Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+      ],
     ),
   );
 }
