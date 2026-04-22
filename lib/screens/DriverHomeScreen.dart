@@ -1,6 +1,5 @@
 // ignore_for_file: file_names
 import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -34,11 +33,57 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         .collection('users')
         .doc(phone)
         .get();
+
     if (mounted) {
       setState(() {
         assignedBusId = doc.data()?['AssignedBusID'];
         isLoadingBus = false;
       });
+
+      _checkAndResetDailyTrips();
+    }
+  }
+
+  Future<void> _checkAndResetDailyTrips() async {
+    if (assignedBusId == null) return;
+
+    final busDoc = await FirebaseFirestore.instance
+        .collection('Buses')
+        .doc(assignedBusId)
+        .get();
+    if (!busDoc.exists) return;
+
+    final data = busDoc.data()!;
+    final afternoonStatus = data['afternoonTripStatus'] ?? 'لم تبدأ';
+    final Timestamp? lastUpdated = data['LastUpdated'] as Timestamp?;
+
+    if (lastUpdated != null) {
+      final lastUpdatedDate = lastUpdated.toDate();
+      final now = DateTime.now();
+
+      // Check if the last update was on a previous day
+      bool isNewDay =
+          now.day != lastUpdatedDate.day ||
+          now.month != lastUpdatedDate.month ||
+          now.year != lastUpdatedDate.year;
+
+      // Check if it is past 3:00 PM (15:00) today
+      bool isPast3PM = now.hour >= 15;
+
+      // Trigger reset if it's a completely new day OR (it's past 3 PM and the afternoon trip isn't already reset)
+      if (isNewDay || (isPast3PM && afternoonStatus != 'لم تبدأ')) {
+        await FirebaseFirestore.instance
+            .collection('Buses')
+            .doc(assignedBusId)
+            .update({
+              'morningTripStatus': 'لم تبدأ',
+              'afternoonTripStatus': 'لم تبدأ',
+              'LastUpdated': FieldValue.serverTimestamp(),
+            });
+
+        // Optional: Trigger a quick UI refresh if the status changed while the user is looking at the screen
+        if (mounted) setState(() {});
+      }
     }
   }
 
@@ -77,26 +122,32 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                         .doc(assignedBusId)
                                         .snapshots(),
                                     builder: (context, snapshot) {
-                                      String status = "لم تبدأ"; // Safe default
+                                      // ✅ 1. Set distinct default statuses
+                                      String morningStatus = "لم تبدأ";
+                                      String afternoonStatus = "لم تبدأ";
 
                                       if (snapshot.hasData &&
                                           snapshot.data!.exists) {
-                                        final busData = snapshot.data!.data()
-                                            as Map<String, dynamic>;
+                                        final busData =
+                                            snapshot.data!.data()
+                                                as Map<String, dynamic>;
 
-                                        if (busData.containsKey('tripStatus')) {
-                                          status = busData['tripStatus'];
-                                        }
+                                        // ✅ 2. Read the specific fields defined by your backend AI
+                                        morningStatus =
+                                            busData['morningTripStatus'] ??
+                                            "لم تبدأ";
+                                        afternoonStatus =
+                                            busData['afternoonTripStatus'] ??
+                                            "لم تبدأ";
                                       }
 
-                                      // ✅ THIS FIXES THE WARNING: We use isTestingMode here!
                                       final hour = DateTime.now().hour;
-                                      
-                                      // Morning trip active between 4 AM and 11 AM
-                                      bool isMorningActive = isTestingMode ? true : (hour >= 4 && hour < 11);
-                                      
-                                      // Afternoon trip active between 11 AM and 5 PM
-                                      bool isAfternoonActive = isTestingMode ? true : (hour >= 11 && hour < 17);
+                                      bool isMorningActive = isTestingMode
+                                          ? true
+                                          : (hour >= 4 && hour < 11);
+                                      bool isAfternoonActive = isTestingMode
+                                          ? true
+                                          : (hour >= 11 && hour < 17);
 
                                       return Column(
                                         children: [
@@ -105,9 +156,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                             title: 'رحلة الذهاب',
                                             destination: 'المدرسة',
                                             time: '5:30 صباحاً',
-                                            status: status,
+                                            status:
+                                                morningStatus, // ✅ 3. Pass specific morning status
                                             busId: assignedBusId!,
-                                            isActive: isMorningActive, // ✅ Dynamic lock applied
+                                            isActive: isMorningActive,
                                             isMorningTrip: true,
                                           ),
                                           const SizedBox(height: 20),
@@ -116,9 +168,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                             title: 'رحلة العودة',
                                             destination: 'منازل الطلاب',
                                             time: '1:30 مساءً',
-                                            status: status,
+                                            status:
+                                                afternoonStatus, // ✅ 4. Pass specific afternoon status
                                             busId: assignedBusId!,
-                                            isActive: isAfternoonActive, // ✅ Dynamic lock applied
+                                            isActive: isAfternoonActive,
                                             isMorningTrip: false,
                                           ),
                                         ],
@@ -167,7 +220,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-Widget _buildTripSection(
+  Widget _buildTripSection(
     BuildContext context, {
     required String title,
     required String destination,
@@ -210,7 +263,7 @@ Widget _buildTripSection(
           _buildDataRow('الوجهة النهائية', destination),
           _buildDataRow('وقت البداية', time),
           _buildDataRow('الحالة', status),
-          
+
           // ✅ Local filtering logic for accurate student count
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -220,21 +273,22 @@ Widget _buildTripSection(
                 .snapshots(),
             builder: (context, snapshot) {
               int count = 0;
-              
+
               if (snapshot.hasData && snapshot.data != null) {
                 count = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final studentBusId = data['BusID']?.toString() ?? '';
-                  
+
                   // Checks if "Bus_32438_102" contains "102"
-                  return studentBusId.isNotEmpty && busId.contains(studentBusId);
+                  return studentBusId.isNotEmpty &&
+                      busId.contains(studentBusId);
                 }).length;
               }
-              
+
               return _buildDataRow('الطلاب الحاضرين', '$count طالب');
             },
           ),
-          
+
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -262,7 +316,7 @@ Widget _buildTripSection(
                 ),
               ),
               child: Text(
-                isActive ? 'بدء الرحلة' : 'غير متاح',
+                isActive ? 'ادخل على الرحلة' : 'غير متاح',
                 style: const TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 14,
