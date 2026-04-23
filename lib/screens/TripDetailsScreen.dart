@@ -32,6 +32,16 @@ class TripDetailsScreen extends StatelessWidget {
             ),
             onPressed: () => Navigator.pop(context),
           ),
+
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.language, color: Colors.white, size: 22),
+              onPressed: () {
+                // كود الترجمة أو تغيير اللغة هنا
+                print("تغيير اللغة");
+              },
+            ),
+          ],
         ),
         body: Column(
           children: [

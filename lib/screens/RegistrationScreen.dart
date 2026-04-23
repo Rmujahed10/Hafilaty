@@ -320,11 +320,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ? "إنشاء حساب سائق"
         : "إنشاء حساب مشرف";
 
-    final VoidCallback onLang = () {
-      // يمكنك إضافة منطق تغيير اللغة هنا لاحقاً
-      debugPrint("تغيير اللغة");
-    };
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -360,14 +355,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: IconButton(
-                      onPressed: onLang,
-                      icon: const Icon(
-                        Icons.language,
-                        color: Colors.white,
-                        size: 22,
-                      ),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.language, color: Colors.white),
                     ),
                   ),
+                  const SizedBox(height: 5),
                 ],
               ),
             ),
