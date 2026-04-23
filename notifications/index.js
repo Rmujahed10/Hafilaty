@@ -4,12 +4,14 @@
 
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore"); // ✅ إضافة استيراد مراقب المستندات
 const admin = require("firebase-admin");
 
 admin.initializeApp();
 
 setGlobalOptions({ maxInstances: 10 });
 
+// الدالة الأولى (التنبيه اليومي المجدول)
 exports.sendAttendanceReminder = onSchedule(
     {
         schedule: "0 19 * * *", // كل يوم الساعة 7 مساء
@@ -69,3 +71,60 @@ exports.sendAttendanceReminder = onSchedule(
         }
     }
 );
+
+// ✅ الدالة الثانية (التتبع والإشعارات المباشرة)
+exports.sendLiveNotification = onDocumentCreated("LiveNotifications/{docId}", async (event) => {
+    const data = event.data.data();
+    if (!data) return;
+
+    const { type, targetPhone, busId, title, body } = data;
+    let tokens = [];
+
+    try {
+        if (type === "individual" && targetPhone) {
+            // جلب توكن ولي أمر محدد (تنبيه اقتراب الحافلة)
+            const userDoc = await admin.firestore().collection("users").doc(targetPhone).get();
+            if (userDoc.exists && userDoc.data().fcmToken) {
+                tokens.push(userDoc.data().fcmToken);
+            }
+        } 
+        else if (type === "broadcast" && busId) {
+            // جلب توكنات جميع أولياء أمور الطلاب في هذه الحافلة (تنبيه المدرسة)
+            const studentsSnap = await admin.firestore().collection("Students").where("BusID", "==", busId).get();
+            const parentPhones = new Set();
+            
+            studentsSnap.forEach(doc => {
+                const phone = doc.data().parentPhone;
+                if (phone) parentPhones.add(phone);
+            });
+
+            // جلب التوكنات لأولياء الأمور
+            for (const phone of parentPhones) {
+                const userDoc = await admin.firestore().collection("users").doc(phone).get();
+                if (userDoc.exists && userDoc.data().fcmToken) {
+                    tokens.push(userDoc.data().fcmToken);
+                }
+            }
+        }
+
+        if (tokens.length === 0) {
+            console.log("No tokens found for this notification.");
+            return;
+        }
+
+        const message = {
+            notification: { title, body },
+            data: { screen: "manage_child" }, // تحويل الوالد إلى شاشة تتبع الابن عند النقر
+            tokens: tokens,
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+        console.log(`Live Notification Sent: ${response.successCount} success, ${response.failureCount} failed.`);
+
+        // تنظيف قاعدة البيانات بحذف المستند بعد الإرسال بنجاح
+        await event.data.ref.delete();
+
+    } catch (error) {
+        console.error("Error sending live notification:", error);
+    }
+});

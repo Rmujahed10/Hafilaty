@@ -9,6 +9,8 @@ class StudentPinModel {
   final double lat;
   final double lng;
   final String busIdInDoc; // ✅ Added this field
+  String parentPhone; // ✅ تمت الإضافة
+  bool isNearNotificationSent; // ✅ تمت الإضافة
 
   StudentPinModel({
     required this.studentId,
@@ -16,6 +18,8 @@ class StudentPinModel {
     required this.lat,
     required this.lng,
     required this.busIdInDoc, // ✅ Added to constructor
+    this.parentPhone = '', // ✅ قيمة افتراضية
+    this.isNearNotificationSent = false, // ✅ قيمة افتراضية
   });
 }
 

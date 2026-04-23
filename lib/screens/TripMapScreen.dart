@@ -110,6 +110,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
         final status = studentDoc.data()?['busStatus'] ?? '';
 
+        // ✅ سحب رقم الجوال لولي الأمر لاستخدامه في الإشعارات
+        student.parentPhone = studentDoc.data()?['parentPhone'] ?? '';
+
         // ✅ Determine if the stop is complete based on trip type
         bool isStopCompleted = widget.isMorningTrip 
             ? status == 'في الحافلة' 
@@ -219,10 +222,37 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
       // 3. Geofencing check
       _checkArrivalProximity(newLocation);
+      _checkWarningProximity(newLocation); // ✅ استدعاء فحص تنبيه الاقتراب
 
       // 4. Speeding check
       _checkSpeeding(position);
     });
+  }
+
+  // ✅ الدالة الجديدة لفحص الاقتراب وإرسال تنبيه "الحافلة تقترب"
+  void _checkWarningProximity(LatLng currentLoc) {
+    if (!widget.isMorningTrip) return;
+
+    for (var student in _students) {
+      if (student.isNearNotificationSent || student.parentPhone.isEmpty) continue;
+
+      double distance = Geolocator.distanceBetween(
+        currentLoc.latitude, currentLoc.longitude,
+        student.lat, student.lng,
+      );
+
+      if (distance <= 500.0) {
+        student.isNearNotificationSent = true; 
+
+        FirebaseFirestore.instance.collection('LiveNotifications').add({
+          'type': 'individual',
+          'targetPhone': student.parentPhone,
+          'title': 'الحافلة تقترب! 🚌',
+          'body': 'حافلة ${student.name} تقترب من المنزل. يرجى الاستعداد.',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
   }
 
   // ============================================================
@@ -392,6 +422,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
       await _updateBusStatus("جارية الآن");
 
+      // ✅ إشعار جماعي ببدء العودة للمنزل
+      if (!widget.isMorningTrip && _tripNavigationService.currentBatchIndex == 0) {
+        FirebaseFirestore.instance.collection('LiveNotifications').add({
+          'type': 'broadcast',
+          'busId': widget.busId,
+          'title': 'بدء رحلة العودة 🚌',
+          'body': 'صعد الطلاب إلى الحافلة وهم في طريقهم إلى المنزل الآن.',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       await _tripNavigationService.startSmartNavigation(
         driverLat: _currentBusLocation!.latitude,
         driverLng: _currentBusLocation!.longitude,
@@ -479,6 +520,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
             fieldToUpdate: status,
             'LastUpdated': FieldValue.serverTimestamp(),
           });
+
+      // ✅ إشعار جماعي بالوصول للمدرسة
+      if (widget.isMorningTrip && status == "مكتملة") {
+        FirebaseFirestore.instance.collection('LiveNotifications').add({
+          'type': 'broadcast',
+          'busId': widget.busId,
+          'title': 'الوصول للمدرسة 🏫',
+          'body': 'تم وصول الحافلة إلى المدرسة بسلام.',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       // ✅ Update the local state so the UI button reacts instantly
       if (mounted) {
