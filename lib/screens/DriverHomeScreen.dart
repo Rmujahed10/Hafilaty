@@ -411,10 +411,6 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
-          IconButton(
-            onPressed: onLang,
-            icon: const Icon(Icons.language, color: Colors.white),
-          ),
           const Spacer(),
           Text(
             title,
@@ -426,6 +422,11 @@ class _TopHeader extends StatelessWidget {
           ),
           const Spacer(),
           const SizedBox(width: 48),
+
+          IconButton(
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white),
+          ),
         ],
       ),
     );

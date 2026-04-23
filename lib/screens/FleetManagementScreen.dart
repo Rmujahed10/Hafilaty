@@ -29,6 +29,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
               _TopHeader(
                 title: "تفاصيل الأسطول",
                 onBack: () => Navigator.pop(context),
+                onLang: () {},
               ),
               Expanded(
                 child: SingleChildScrollView(
@@ -329,7 +330,8 @@ class _MapSectionState extends State<_MapSection> {
 
 class _DriverBehaviorCard extends StatelessWidget {
   final int selectedTab; // 0 = يومي, 1 = شهري
-  final String targetBusID = "Bus_32438_101"; // Make sure this matches your map!
+  final String targetBusID =
+      "Bus_32438_101"; // Make sure this matches your map!
 
   const _DriverBehaviorCard({required this.selectedTab});
 
@@ -353,12 +355,14 @@ class _DriverBehaviorCard extends StatelessWidget {
           .doc(targetBusID)
           .collection('DrivingEvents')
           .where('type', isEqualTo: 'Speeding')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where(
+            'timestamp',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+          )
           .snapshots(),
       builder: (context, snapshot) {
-        
         // 3. Set default static values for metrics we aren't tracking yet
-        double brakingScore = 1.0;   // 100%
+        double brakingScore = 1.0; // 100%
         double corneringScore = 1.0; // 100%
 
         // 4. Calculate dynamic Speeding Score
@@ -367,16 +371,17 @@ class _DriverBehaviorCard extends StatelessWidget {
 
         if (snapshot.hasData) {
           speedingEventsCount = snapshot.data!.docs.length;
-          
+
           // Deduct 5% for every speeding event logged (adjust this penalty as you see fit)
           speedingScore = 1.0 - (speedingEventsCount * 0.05);
-          
+
           // Prevent the score from dropping below 0%
-          if (speedingScore < 0) speedingScore = 0.0; 
+          if (speedingScore < 0) speedingScore = 0.0;
         }
 
         // 5. Calculate Overall Score (Average of the three)
-        double overallScore = (speedingScore + brakingScore + corneringScore) / 3;
+        double overallScore =
+            (speedingScore + brakingScore + corneringScore) / 3;
 
         return Container(
           padding: const EdgeInsets.all(20),
@@ -388,45 +393,48 @@ class _DriverBehaviorCard extends StatelessWidget {
           child: Column(
             children: [
               _ProgressCircle(
-                label: "التقييم العام", 
-                value: overallScore, 
+                label: "التقييم العام",
+                value: overallScore,
                 color: _getColorForScore(overallScore), // Dynamic color!
-                size: 120, 
-                stroke: 10
+                size: 120,
+                stroke: 10,
               ),
               const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _ProgressCircle(
-                    label: "الانعطافات", 
-                    value: corneringScore, 
-                    color: _getColorForScore(corneringScore), 
-                    size: 60, 
-                    stroke: 5
+                    label: "الانعطافات",
+                    value: corneringScore,
+                    color: _getColorForScore(corneringScore),
+                    size: 60,
+                    stroke: 5,
                   ),
                   _ProgressCircle(
-                    label: "الفرملة", 
-                    value: brakingScore, 
-                    color: _getColorForScore(brakingScore), 
-                    size: 60, 
-                    stroke: 5
+                    label: "الفرملة",
+                    value: brakingScore,
+                    color: _getColorForScore(brakingScore),
+                    size: 60,
+                    stroke: 5,
                   ),
                   _ProgressCircle(
-                    label: "السرعة", 
-                    value: speedingScore, 
-                    color: _getColorForScore(speedingScore), 
-                    size: 60, 
-                    stroke: 5
+                    label: "السرعة",
+                    value: speedingScore,
+                    color: _getColorForScore(speedingScore),
+                    size: 60,
+                    stroke: 5,
                   ),
                 ],
               ),
-              
+
               // ✅ Bonus: Show a warning text if there are violations!
               if (speedingEventsCount > 0) ...[
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF3F2),
                     borderRadius: BorderRadius.circular(8),
@@ -434,13 +442,13 @@ class _DriverBehaviorCard extends StatelessWidget {
                   child: Text(
                     "تم تسجيل $speedingEventsCount مخالفات سرعة ${selectedTab == 0 ? 'اليوم' : 'هذا الشهر'}",
                     style: const TextStyle(
-                      color: Color(0xFFD92D20), 
-                      fontSize: 12, 
-                      fontWeight: FontWeight.w800
+                      color: Color(0xFFD92D20),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                )
-              ]
+                ),
+              ],
             ],
           ),
         );
@@ -511,8 +519,12 @@ class _ProgressCircle extends StatelessWidget {
 
 class _TopHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onBack;
-  const _TopHeader({required this.title, required this.onBack});
+  final VoidCallback onBack, onLang;
+  const _TopHeader({
+    required this.title,
+    required this.onBack,
+    required this.onLang,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -522,6 +534,15 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+
           const SizedBox(width: 48),
           const Spacer(),
           Text(
@@ -533,13 +554,10 @@ class _TopHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
+
           IconButton(
-            onPressed: onBack,
-            icon: const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white,
-              size: 22,
-            ),
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
           ),
         ],
       ),

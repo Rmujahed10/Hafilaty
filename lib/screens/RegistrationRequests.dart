@@ -28,7 +28,10 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       final phone = user?.email?.split('@')[0];
-      final doc = await FirebaseFirestore.instance.collection('users').doc(phone).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(phone)
+          .get();
       if (mounted) {
         setState(() {
           currentSchoolId = doc.get('schoolId').toString();
@@ -52,19 +55,18 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
               _TopHeader(
                 title: "طلبات التسجيل",
                 onBack: () => Navigator.pop(context),
+                onLang: () {},
               ),
               Expanded(
                 child: isLoading
-                    ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _kHeaderBlue),
+                      )
                     : SingleChildScrollView(
                         child: Column(
                           children: [
                             const SizedBox(height: 10),
-                            _MainCardContainer(
-                              children: [
-                                _buildRequestList(),
-                              ],
-                            ),
+                            _MainCardContainer(children: [_buildRequestList()]),
                             const SizedBox(height: 20),
                           ],
                         ),
@@ -79,7 +81,8 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   }
 
   Widget _buildRequestList() {
-    if (currentSchoolId == null) return const Center(child: Text("خطأ في تحميل بيانات المدرسة"));
+    if (currentSchoolId == null)
+      return const Center(child: Text("خطأ في تحميل بيانات المدرسة"));
 
     int schoolIdInt = int.parse(currentSchoolId!);
 
@@ -90,14 +93,18 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
           .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
         final requests = snapshot.data!.docs;
 
         if (requests.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.only(top: 40),
-              child: Text("لا توجد طلبات معلقة حالياً", style: TextStyle(color: Colors.grey)),
+              child: Text(
+                "لا توجد طلبات معلقة حالياً",
+                style: TextStyle(color: Colors.grey),
+              ),
             ),
           );
         }
@@ -119,10 +126,15 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
 
   // --- Logic Handlers ---
 
-  Future<void> _handleAccept(String requestId, Map<String, dynamic> data) async {
+  Future<void> _handleAccept(
+    String requestId,
+    Map<String, dynamic> data,
+  ) async {
     if (data['lat'] == null || data['lng'] == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("خطأ: لم يتم تحديد موقع الطالب من قبل ولي الأمر"))
+        const SnackBar(
+          content: Text("خطأ: لم يتم تحديد موقع الطالب من قبل ولي الأمر"),
+        ),
       );
       return;
     }
@@ -131,51 +143,58 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
       // SUCCESSFUL SYNC LOGIC:
       // We use 'requestId' (The National ID) as the Document ID for the Students collection.
       // This ensures doc IDs match across both collections.
-      String nationalId = requestId; 
+      String nationalId = requestId;
 
-      await FirebaseFirestore.instance.collection('Students').doc(nationalId).set({
-        'StudentID': nationalId,      // No longer "STU###", matches Doc ID
-        'StudentName': data['name_en'],
-        'StudentName_ar': data['name_ar'],
-        'IDNumber': nationalId,       // Explicit field for your clustering script
-        'parentPhone': data['parentPhone'],
-        'secondPhone': data['secondPhone'] ?? '',
-        'SchoolID': data['schoolId'], 
-        'SchoolName': data['SchoolName'],
-        'Grade': data['Grade'],
-        'Latitude': data['lat'], 
-        'Longitude': data['lng'], 
-        'BusID': "Unassigned", 
-        'status': 'active',
-        'joinedAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection('Students')
+          .doc(nationalId)
+          .set({
+            'StudentID': nationalId, // No longer "STU###", matches Doc ID
+            'StudentName': data['name_en'],
+            'StudentName_ar': data['name_ar'],
+            'IDNumber': nationalId, // Explicit field for your clustering script
+            'parentPhone': data['parentPhone'],
+            'secondPhone': data['secondPhone'] ?? '',
+            'SchoolID': data['schoolId'],
+            'SchoolName': data['SchoolName'],
+            'Grade': data['Grade'],
+            'Latitude': data['lat'],
+            'Longitude': data['lng'],
+            'BusID': "Unassigned",
+            'status': 'active',
+            'joinedAt': FieldValue.serverTimestamp(),
+          });
 
       // Update the request status in StudentRequests
-      await FirebaseFirestore.instance.collection('StudentRequests').doc(nationalId).update({
-        'status': 'approved',
-      }); 
+      await FirebaseFirestore.instance
+          .collection('StudentRequests')
+          .doc(nationalId)
+          .update({'status': 'approved'});
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("تم قبول الطالب وإضافته للنظام بنجاح"))
+          const SnackBar(content: Text("تم قبول الطالب وإضافته للنظام بنجاح")),
         );
       }
     } catch (e) {
       debugPrint("Accept Error: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("حدث خطأ أثناء القبول: $e"))
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("حدث خطأ أثناء القبول: $e")));
       }
     }
   }
 
   Future<void> _handleRefuse(String requestId) async {
-    await FirebaseFirestore.instance.collection('StudentRequests').doc(requestId).update({
-      'status': 'refused',
-    });
+    await FirebaseFirestore.instance
+        .collection('StudentRequests')
+        .doc(requestId)
+        .update({'status': 'refused'});
     // ignore: use_build_context_synchronously
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم رفض الطلب")));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("تم رفض الطلب")));
   }
 
   Widget _buildBottomNav(BuildContext context) {
@@ -183,7 +202,9 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
       height: 85,
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
         elevation: 0,
@@ -191,16 +212,28 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
         currentIndex: 0,
         onTap: (index) {
           if (index == 0) Navigator.pushReplacementNamed(context, '/AdminHome');
           if (index == 1) Navigator.pushReplacementNamed(context, '/role_home');
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded, size: 28),
+            label: 'الرئيسية',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded, size: 28),
+            label: 'الملف الشخصي',
+          ),
         ],
       ),
     );
@@ -231,7 +264,13 @@ class _RequestCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFF2F3F5)),
-        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -251,23 +290,27 @@ class _RequestCard extends StatelessWidget {
                     children: [
                       Text(
                         data['name_ar'] ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0D1B36)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          color: Color(0xFF0D1B36),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           Icon(
-                            Icons.location_on, 
-                            size: 14, 
-                            color: hasLocation ? Colors.green : Colors.red
+                            Icons.location_on,
+                            size: 14,
+                            color: hasLocation ? Colors.green : Colors.red,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             hasLocation ? "الموقع محدد ✅" : "الموقع غير محدد ❌",
                             style: TextStyle(
-                              fontSize: 12, 
+                              fontSize: 12,
                               color: hasLocation ? Colors.green : Colors.red,
-                              fontWeight: FontWeight.bold
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
@@ -283,7 +326,10 @@ class _RequestCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _DetailRow(label: "رقم الجوال", value: data['parentPhone'] ?? ''),
+                _DetailRow(
+                  label: "رقم الجوال",
+                  value: data['parentPhone'] ?? '',
+                ),
                 const Divider(height: 20, color: Color(0xFFF9FAFB)),
                 _DetailRow(label: "الصف", value: data['Grade'] ?? ''),
                 const Divider(height: 20, color: Color(0xFFF9FAFB)),
@@ -296,11 +342,19 @@ class _RequestCard extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: _ActionBtn(label: "قبول", color: const Color(0xFF6A994E), onTap: onAccept),
+                  child: _ActionBtn(
+                    label: "قبول",
+                    color: const Color(0xFF6A994E),
+                    onTap: onAccept,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _ActionBtn(label: "رفض", color: const Color(0xFFD64545), onTap: onReject),
+                  child: _ActionBtn(
+                    label: "رفض",
+                    color: const Color(0xFFD64545),
+                    onTap: onReject,
+                  ),
                 ),
               ],
             ),
@@ -320,8 +374,22 @@ class _DetailRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF98AF8D), fontSize: 13, fontWeight: FontWeight.bold)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0D1B36))),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF98AF8D),
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+            color: Color(0xFF0D1B36),
+          ),
+        ),
       ],
     );
   }
@@ -331,7 +399,11 @@ class _ActionBtn extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _ActionBtn({required this.label, required this.color, required this.onTap});
+  const _ActionBtn({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -345,7 +417,14 @@ class _ActionBtn extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Center(
-          child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 13)),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
+          ),
         ),
       ),
     );
@@ -354,8 +433,12 @@ class _ActionBtn extends StatelessWidget {
 
 class _TopHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onBack;
-  const _TopHeader({required this.title, required this.onBack});
+  final VoidCallback onBack, onLang;
+  const _TopHeader({
+    required this.title,
+    required this.onBack,
+    required this.onLang,
+  });
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -364,13 +447,30 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
-          const SizedBox(width: 48), 
-          const Spacer(),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-          const Spacer(),
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+
+          const SizedBox(width: 48),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+
+          IconButton(
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
           ),
         ],
       ),
@@ -386,12 +486,20 @@ class _MainCardContainer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );

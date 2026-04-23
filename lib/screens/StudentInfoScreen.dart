@@ -345,9 +345,14 @@ class _TopHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: onLang,
-            icon: const Icon(Icons.language, color: Colors.white, size: 22),
+            onPressed: onBack,
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
+
           const Spacer(),
           Text(
             title,
@@ -358,13 +363,10 @@ class _TopHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
+
           IconButton(
-            onPressed: onBack,
-            icon: const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white,
-              size: 20,
-            ),
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
           ),
         ],
       ),

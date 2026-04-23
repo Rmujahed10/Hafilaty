@@ -13,10 +13,8 @@ class ChooseRoleScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RegistrationScreen(
-          role: roleKey,
-          successRoute: "/login",
-        ),
+        builder: (context) =>
+            RegistrationScreen(role: roleKey, successRoute: "/login"),
       ),
     );
   }
@@ -34,9 +32,13 @@ class ChooseRoleScreen extends StatelessWidget {
               _TopHeader(
                 title: "تسجيل حساب جديد",
                 onBack: () => Navigator.pushNamedAndRemoveUntil(
-                    context, "/login", (route) => false),
+                  context,
+                  "/login",
+                  (route) => false,
+                ),
+                onLang: () {},
               ),
-              
+
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
@@ -46,9 +48,11 @@ class ChooseRoleScreen extends StatelessWidget {
                       _MainCardContainer(
                         children: [
                           const SizedBox(height: 10),
-                          
-                          const _SectionLabel(label: "يرجى اختيار نوع الحساب للتسجيل"),
-                          
+
+                          const _SectionLabel(
+                            label: "يرجى اختيار نوع الحساب للتسجيل",
+                          ),
+
                           const SizedBox(height: 30),
 
                           // --- Role Selection Buttons ---
@@ -77,7 +81,7 @@ class ChooseRoleScreen extends StatelessWidget {
                           const Text(
                             "جميع الحقوق محفوظة ٢٠٢٦",
                             style: TextStyle(
-                              color: Colors.grey, 
+                              color: Colors.grey,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -123,10 +127,10 @@ class _RoleButton extends StatelessWidget {
           border: Border.all(color: const Color(0xFFF2F3F5)),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x0D000000), 
-              blurRadius: 12, 
+              color: Color(0x0D000000),
+              blurRadius: 12,
               offset: Offset(0, 6),
-            )
+            ),
           ],
         ),
         child: Column(
@@ -150,8 +154,12 @@ class _RoleButton extends StatelessWidget {
 
 class _TopHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onBack;
-  const _TopHeader({required this.title, required this.onBack});
+  final VoidCallback onBack, onLang;
+  const _TopHeader({
+    required this.title,
+    required this.onBack,
+    required this.onLang,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -161,20 +169,30 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
-          const SizedBox(width: 48), 
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+
+          const SizedBox(width: 48),
           const Spacer(),
           Text(
-            title, 
+            title,
             style: const TextStyle(
-              color: Colors.white, 
-              fontSize: 20, 
+              color: Colors.white,
+              fontSize: 20,
               fontWeight: FontWeight.w900,
             ),
           ),
           const Spacer(),
+
           IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
           ),
         ],
       ),
@@ -200,10 +218,10 @@ class _MainCardContainer extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x14000000), 
-            blurRadius: 16, 
+            color: Color(0x14000000),
+            blurRadius: 16,
             offset: Offset(0, 8),
-          )
+          ),
         ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
@@ -219,11 +237,11 @@ class _SectionLabel extends StatelessWidget {
     return Align(
       alignment: Alignment.center,
       child: Text(
-        label, 
+        label,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          fontSize: 16, 
-          fontWeight: FontWeight.w900, 
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
           color: Color(0xFF98AF8D),
         ),
       ),

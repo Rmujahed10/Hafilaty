@@ -1,6 +1,6 @@
 // ignore_for_file: file_names
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; 
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -38,7 +38,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
   bool _isLoading = true;
   bool _isUpdating = false;
-  String? _role; 
+  String? _role;
   String? _phoneDocId;
 
   @override
@@ -85,7 +85,8 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
     if (picked != null) {
       setState(() {
-        _birthDateController.text = "${picked.year}-${picked.month}-${picked.day}";
+        _birthDateController.text =
+            "${picked.year}-${picked.month}-${picked.day}";
       });
     }
   }
@@ -103,7 +104,10 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         return;
       }
 
-      final doc = await FirebaseFirestore.instance.collection('users').doc(_phoneDocId).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_phoneDocId)
+          .get();
       if (!doc.exists) {
         setState(() => _isLoading = false);
         return;
@@ -157,13 +161,20 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         updatedData.addAll({'school': _schoolController.text.trim()});
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(_phoneDocId!).update(updatedData);
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_phoneDocId!)
+          .update(updatedData);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث البيانات بنجاح.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحديث البيانات بنجاح.')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ أثناء تحديث البيانات.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('حدث خطأ أثناء تحديث البيانات.')),
+        );
       }
     }
     setState(() => _isUpdating = false);
@@ -181,10 +192,13 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
               _TopHeader(
                 title: 'تعديل معلومات الحساب',
                 onBack: () => Navigator.pop(context),
+                onLang: () {},
               ),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _kHeaderBlue),
+                      )
                     : SingleChildScrollView(
                         child: Column(
                           children: [
@@ -194,59 +208,149 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
                                 Form(
                                   key: _formKey,
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      const _SectionLabel(label: "المعلومات الشخصية"),
+                                      const _SectionLabel(
+                                        label: "المعلومات الشخصية",
+                                      ),
                                       Row(
                                         children: [
-                                          Expanded(child: _buildProfileField(label: 'الاسم الأول', controller: _firstNameController, icon: Icons.person_outline)),
+                                          Expanded(
+                                            child: _buildProfileField(
+                                              label: 'الاسم الأول',
+                                              controller: _firstNameController,
+                                              icon: Icons.person_outline,
+                                            ),
+                                          ),
                                           const SizedBox(width: 12),
-                                          Expanded(child: _buildProfileField(label: 'الاسم الأخير', controller: _lastNameController, icon: Icons.person_outline)),
+                                          Expanded(
+                                            child: _buildProfileField(
+                                              label: 'الاسم الأخير',
+                                              controller: _lastNameController,
+                                              icon: Icons.person_outline,
+                                            ),
+                                          ),
                                         ],
                                       ),
-                                      _buildProfileField(label: 'الهوية', controller: _idController, isNumber: true, hint: "1xxxxxxxxx", icon: Icons.badge_outlined),
+                                      _buildProfileField(
+                                        label: 'الهوية',
+                                        controller: _idController,
+                                        isNumber: true,
+                                        hint: "1xxxxxxxxx",
+                                        icon: Icons.badge_outlined,
+                                      ),
 
                                       if (_role == 'parent') ...[
                                         const SizedBox(height: 16),
-                                        const _SectionLabel(label: "بيانات الموقع"),
-                                        _buildProfileField(label: 'المدينة', controller: _cityController, icon: Icons.location_city_outlined),
-                                        _buildProfileField(label: 'الحي', controller: _districtController, icon: Icons.map_outlined),
-                                        _buildProfileField(label: 'الشارع', controller: _streetController, icon: Icons.streetview_outlined),
+                                        const _SectionLabel(
+                                          label: "بيانات الموقع",
+                                        ),
+                                        _buildProfileField(
+                                          label: 'المدينة',
+                                          controller: _cityController,
+                                          icon: Icons.location_city_outlined,
+                                        ),
+                                        _buildProfileField(
+                                          label: 'الحي',
+                                          controller: _districtController,
+                                          icon: Icons.map_outlined,
+                                        ),
+                                        _buildProfileField(
+                                          label: 'الشارع',
+                                          controller: _streetController,
+                                          icon: Icons.streetview_outlined,
+                                        ),
                                       ],
 
                                       if (_role == 'driver') ...[
                                         const SizedBox(height: 16),
-                                        const _SectionLabel(label: "بيانات القيادة"),
-                                        _buildProfileField(label: 'رقم الرخصة', controller: _licenseController, isNumber: true, hint: "1xxxxxxxxx", icon: Icons.card_membership_outlined),
-                                        _buildProfileField(label: 'تاريخ الميلاد', controller: _birthDateController, isReadOnly: true, onTap: _pickDate, hint: "اضغط للتعديل", icon: Icons.calendar_today_outlined),
+                                        const _SectionLabel(
+                                          label: "بيانات القيادة",
+                                        ),
+                                        _buildProfileField(
+                                          label: 'رقم الرخصة',
+                                          controller: _licenseController,
+                                          isNumber: true,
+                                          hint: "1xxxxxxxxx",
+                                          icon: Icons.card_membership_outlined,
+                                        ),
+                                        _buildProfileField(
+                                          label: 'تاريخ الميلاد',
+                                          controller: _birthDateController,
+                                          isReadOnly: true,
+                                          onTap: _pickDate,
+                                          hint: "اضغط للتعديل",
+                                          icon: Icons.calendar_today_outlined,
+                                        ),
                                       ],
 
                                       if (_role == 'admin') ...[
                                         const SizedBox(height: 16),
-                                        const _SectionLabel(label: "بيانات الإدارة"),
-                                        _buildProfileField(label: 'المدرسة', controller: _schoolController, icon: Icons.school_outlined),
+                                        const _SectionLabel(
+                                          label: "بيانات الإدارة",
+                                        ),
+                                        _buildProfileField(
+                                          label: 'المدرسة',
+                                          controller: _schoolController,
+                                          icon: Icons.school_outlined,
+                                        ),
                                       ],
 
                                       const SizedBox(height: 16),
-                                      const _SectionLabel(label: "معلومات التواصل"),
-                                      _buildProfileField(label: 'رقم الجوال', controller: _phoneController, isNumber: true, hint: "05xxxxxxxx", icon: Icons.phone_android_outlined),
-                                      _buildProfileField(label: 'البريد الإلكتروني', controller: _emailController, hint: "example@mail.com", icon: Icons.email_outlined),
+                                      const _SectionLabel(
+                                        label: "معلومات التواصل",
+                                      ),
+                                      _buildProfileField(
+                                        label: 'رقم الجوال',
+                                        controller: _phoneController,
+                                        isNumber: true,
+                                        hint: "05xxxxxxxx",
+                                        icon: Icons.phone_android_outlined,
+                                      ),
+                                      _buildProfileField(
+                                        label: 'البريد الإلكتروني',
+                                        controller: _emailController,
+                                        hint: "example@mail.com",
+                                        icon: Icons.email_outlined,
+                                      ),
 
                                       const SizedBox(height: 32),
                                       SizedBox(
                                         width: double.infinity,
                                         child: ElevatedButton(
-                                          onPressed: _isUpdating ? null : _updateUserData,
+                                          onPressed: _isUpdating
+                                              ? null
+                                              : _updateUserData,
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: _kHeaderBlue,
                                             foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(vertical: 16),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 16,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(15),
+                                            ),
                                             elevation: 0,
                                           ),
                                           child: _isUpdating
-                                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                              : const Text('حفظ التعديلات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                              ? const SizedBox(
+                                                  height: 20,
+                                                  width: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                )
+                                              : const Text(
+                                                  'حفظ التعديلات',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
                                         ),
                                       ),
                                     ],
@@ -270,15 +374,22 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     required String label,
     required TextEditingController controller,
     required IconData icon,
-    bool isNumber = false,   
-    bool isReadOnly = false, 
-    VoidCallback? onTap,     
+    bool isNumber = false,
+    bool isReadOnly = false,
+    VoidCallback? onTap,
     String? hint,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _kAccentGreen, fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: _kAccentGreen,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
@@ -286,8 +397,14 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
           onTap: onTap,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-          inputFormatters: isNumber ? [FilteringTextInputFormatter.digitsOnly] : [],
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _kHeaderBlue),
+          inputFormatters: isNumber
+              ? [FilteringTextInputFormatter.digitsOnly]
+              : [],
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: _kHeaderBlue,
+          ),
           validator: (v) {
             if (isNumber) return Validators.validateTenDigitNumber(v, label);
             if (label.contains("البريد")) return Validators.validateEmail(v);
@@ -298,14 +415,33 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
             filled: true,
             fillColor: _kFieldBg,
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13, fontWeight: FontWeight.normal),
+            hintStyle: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 13,
+              fontWeight: FontWeight.normal,
+            ),
             prefixIcon: Icon(icon, color: _kAccentGreen, size: 20),
             counterText: "",
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kAccentGreen, width: 1.5)),
-            errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red, width: 1.0)),
-            focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red, width: 1.5)),
-            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _kAccentGreen, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1.0),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 16,
+            ),
           ),
         ),
         const SizedBox(height: 14),
@@ -318,7 +454,9 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
       height: 85,
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
         elevation: 0,
@@ -326,8 +464,14 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
         currentIndex: 1, // Profile active
         onTap: (index) {
           if (index == 0) {
@@ -339,8 +483,14 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded, size: 28), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'الملف الشخصي'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded, size: 28),
+            label: 'الرئيسية',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded, size: 28),
+            label: 'الملف الشخصي',
+          ),
         ],
       ),
     );
@@ -351,8 +501,13 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
 
 class _TopHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onBack;
-  const _TopHeader({required this.title, required this.onBack});
+  final VoidCallback onBack, onLang;
+  const _TopHeader({
+    required this.title,
+    required this.onBack,
+    required this.onLang,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -361,11 +516,31 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+
           const SizedBox(width: 48),
           const Spacer(),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           const Spacer(),
-          IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22)),
+
+          IconButton(
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
+          ),
         ],
       ),
     );
@@ -380,12 +555,20 @@ class _MainCardContainer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -399,7 +582,14 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, right: 4),
-      child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF98AF8D))),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFF98AF8D),
+        ),
+      ),
     );
   }
 }

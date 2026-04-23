@@ -602,9 +602,14 @@ class _TopHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: onLang,
-            icon: const Icon(Icons.language, color: Colors.white),
+            onPressed: onBack,
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
+
           const Spacer(),
           Text(
             title,
@@ -616,8 +621,8 @@ class _TopHeader extends StatelessWidget {
           ),
           const Spacer(),
           IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white),
           ),
         ],
       ),
@@ -693,7 +698,7 @@ class _MapPreviewState extends State<_MapPreview> {
     _fetchSchoolLocation();
   }
 
-Future<void> _fetchSchoolLocation() async {
+  Future<void> _fetchSchoolLocation() async {
     if (widget.schoolId.isEmpty) return;
     try {
       final doc = await FirebaseFirestore.instance
@@ -706,11 +711,20 @@ Future<void> _fetchSchoolLocation() async {
           setState(() {
             // ✅ Bulletproof checks for trailing spaces, typos, and standard names
             var rawLat = data['Latitude '] ?? data['Latitude'] ?? data['lat'];
-            var rawLng = data['Longtitude '] ?? data['Longtitude'] ?? data['Longitude '] ?? data['Longitude'] ?? data['lng'];
+            var rawLng =
+                data['Longtitude '] ??
+                data['Longtitude'] ??
+                data['Longitude '] ??
+                data['Longitude'] ??
+                data['lng'];
 
             // Safely convert whatever it finds into a double
-            schoolLat = rawLat != null ? double.tryParse(rawLat.toString()) : null;
-            schoolLng = rawLng != null ? double.tryParse(rawLng.toString()) : null;
+            schoolLat = rawLat != null
+                ? double.tryParse(rawLat.toString())
+                : null;
+            schoolLng = rawLng != null
+                ? double.tryParse(rawLng.toString())
+                : null;
           });
         }
       }

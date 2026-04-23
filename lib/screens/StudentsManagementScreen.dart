@@ -34,8 +34,11 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       final phone = user?.email?.split('@')[0];
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(phone).get();
-      
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(phone)
+          .get();
+
       if (mounted) {
         setState(() {
           currentSchoolId = userDoc.get('schoolId').toString();
@@ -59,22 +62,22 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
             children: [
               _TopHeader(
                 title: "إدارة الطلاب",
-                onBack: () => Navigator.pushReplacementNamed(context, '/AdminHome'),
+                onBack: () =>
+                    Navigator.pushReplacementNamed(context, '/AdminHome'),
+                onLang: () {},
               ),
               Expanded(
-                child: isLoading 
-                    ? const Center(child: CircularProgressIndicator(color: _kHeaderBlue))
+                child: isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _kHeaderBlue),
+                      )
                     : SingleChildScrollView(
                         child: Column(
                           children: [
                             const SizedBox(height: 15),
                             _buildSearchBar(),
                             const SizedBox(height: 10),
-                            _MainCardContainer(
-                              children: [
-                                _buildStudentList(),
-                              ],
-                            ),
+                            _MainCardContainer(children: [_buildStudentList()]),
                             const SizedBox(height: 20),
                           ],
                         ),
@@ -96,7 +99,11 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
           boxShadow: const [
-            BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 4))
+            BoxShadow(
+              color: Color(0x0A000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: TextField(
@@ -110,7 +117,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
             hintText: 'البحث عن اسم الطالب...',
             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
             prefixIcon: const Icon(Icons.search, color: _kHeaderBlue),
-            suffixIcon: _searchQuery.isNotEmpty 
+            suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () {
@@ -128,8 +135,9 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   }
 
   Widget _buildStudentList() {
-    if (currentSchoolId == null) return const Center(child: Text("خطأ في تحميل البيانات"));
-    
+    if (currentSchoolId == null)
+      return const Center(child: Text("خطأ في تحميل البيانات"));
+
     int schoolIdInt = int.parse(currentSchoolId!);
 
     return StreamBuilder<QuerySnapshot>(
@@ -152,22 +160,27 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
           );
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: CircularProgressIndicator(),
-          ));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
         final students = snapshot.data?.docs ?? [];
 
         // ✅ FIXED: Added null-checks to prevent the TypeError
         final filteredStudents = students.where((doc) {
-          final data = doc.data() as Map<String, dynamic>?; // Cast as nullable map
+          final data =
+              doc.data() as Map<String, dynamic>?; // Cast as nullable map
           if (data == null) return false;
 
-          final nameAr = (data['StudentName_ar'] ?? '').toString().toLowerCase();
+          final nameAr = (data['StudentName_ar'] ?? '')
+              .toString()
+              .toLowerCase();
           final nameEn = (data['StudentName'] ?? '').toString().toLowerCase();
-          
+
           return nameAr.contains(_searchQuery) || nameEn.contains(_searchQuery);
         }).toList();
 
@@ -177,9 +190,16 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Column(
                 children: [
-                  Icon(Icons.search_off_rounded, size: 50, color: Colors.grey.shade300),
+                  Icon(
+                    Icons.search_off_rounded,
+                    size: 50,
+                    color: Colors.grey.shade300,
+                  ),
                   const SizedBox(height: 10),
-                  const Text('لا يوجد نتائج مطابقة للبحث', style: TextStyle(color: Colors.grey)),
+                  const Text(
+                    'لا يوجد نتائج مطابقة للبحث',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             ),
@@ -190,7 +210,11 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
           children: filteredStudents.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return _StudentRowItem(
-              name: (data['StudentName_ar'] ?? data['StudentName'] ?? 'اسم غير متوفر').toString(),
+              name:
+                  (data['StudentName_ar'] ??
+                          data['StudentName'] ??
+                          'اسم غير متوفر')
+                      .toString(),
               onTap: () {
                 Navigator.push(
                   context,
@@ -211,7 +235,9 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
       height: 85,
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
         elevation: 0,
@@ -219,8 +245,14 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: _kHeaderBlue,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
         currentIndex: 0,
         onTap: (index) {
           if (index == 1) {
@@ -246,8 +278,12 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
 
 class _TopHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onBack;
-  const _TopHeader({required this.title, required this.onBack});
+  final VoidCallback onBack, onLang;
+  const _TopHeader({
+    required this.title,
+    required this.onBack,
+    required this.onLang,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -257,13 +293,30 @@ class _TopHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF0D1B36)),
       child: Row(
         children: [
-          const SizedBox(width: 48), 
-          const Spacer(),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-          const Spacer(),
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 22),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+
+          const SizedBox(width: 48),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+
+          IconButton(
+            onPressed: onLang,
+            icon: const Icon(Icons.language, color: Colors.white, size: 22),
           ),
         ],
       ),
@@ -280,12 +333,20 @@ class _MainCardContainer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.75),
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, 8))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -308,7 +369,7 @@ class _StudentRowItem extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF2F3F5)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A000000), 
+            color: Color(0x0A000000),
             blurRadius: 10,
             offset: Offset(0, 4),
           ),
@@ -320,14 +381,25 @@ class _StudentRowItem extends StatelessWidget {
         leading: Container(
           width: 42,
           height: 42,
-          decoration: const BoxDecoration(color: Color(0xFFFFD166), shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFD166),
+            shape: BoxShape.circle,
+          ),
           child: const Icon(Icons.person, color: Colors.white, size: 24),
         ),
         title: Text(
           name,
-          style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF101828), fontSize: 15),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF101828),
+            fontSize: 15,
+          ),
         ),
-        trailing: const Icon(Icons.chevron_right, size: 18, color: Color(0xFF98A2B3)),
+        trailing: const Icon(
+          Icons.chevron_right,
+          size: 18,
+          color: Color(0xFF98A2B3),
+        ),
       ),
     );
   }

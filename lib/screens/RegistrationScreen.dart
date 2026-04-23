@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // --- IMPORT VALIDATOR LOGIC ---
-import 'package:hafilaty/utils/validators.dart'; 
+import 'package:hafilaty/utils/validators.dart';
 
 // --- Constants ---
 const Color kDarkBlue = Color(0xFF0D1B36);
@@ -132,7 +132,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     if (role == "admin") {
       base.addAll({
-        "schoolId": school.text.trim(), // Stored as schoolId for clear DB mapping
+        "schoolId": school.text
+            .trim(), // Stored as schoolId for clear DB mapping
         "birthDate": birthDate.text.trim(),
       });
     }
@@ -172,16 +173,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       // 2. Create Auth Account
       final userCred = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-        email: authEmail,
-        password: password.text,
-      );
+            email: authEmail,
+            password: password.text,
+          );
 
       final uid = userCred.user!.uid;
 
       // 3. Save to Firestore using cleaned PHONE as the Document ID
       await FirebaseFirestore.instance
           .collection("users")
-          .doc(cleanedPhone) 
+          .doc(cleanedPhone)
           .set(buildUserData(uid));
 
       if (!mounted) return;
@@ -217,7 +218,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             licenseNumber,
             Icons.badge,
             isNumber: true,
-            hint: "1xxxxxxxxx"
+            hint: "1xxxxxxxxx",
           ),
           buildField(
             "تاريخ الميلاد",
@@ -225,16 +226,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             Icons.calendar_today,
             isReadOnly: true,
             onTap: _pickDate,
-            hint: "اضغط للاختيار"
+            hint: "اضغط للاختيار",
           ),
         ];
       case "admin":
         return [
           buildField(
-            "كود المدرسة (School ID)", 
-            school, 
-            Icons.domain_verification, 
-            hint: "أدخل الكود الخاص بمدرستك"
+            "كود المدرسة (School ID)",
+            school,
+            Icons.domain_verification,
+            hint: "أدخل الكود الخاص بمدرستك",
           ),
           buildField(
             "تاريخ الميلاد",
@@ -242,7 +243,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             Icons.calendar_today,
             isReadOnly: true,
             onTap: _pickDate,
-            hint: "اضغط للاختيار"
+            hint: "اضغط للاختيار",
           ),
         ];
     }
@@ -316,8 +317,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     final title = widget.role == "parent"
         ? "إنشاء حساب ولي أمر"
         : widget.role == "driver"
-            ? "إنشاء حساب سائق"
-            : "إنشاء حساب مشرف";
+        ? "إنشاء حساب سائق"
+        : "إنشاء حساب مشرف";
+
+    final VoidCallback onLang = () {
+      // يمكنك إضافة منطق تغيير اللغة هنا لاحقاً
+      debugPrint("تغيير اللغة");
+    };
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -332,9 +338,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               child: Column(
                 children: [
                   Align(
-                    alignment: Alignment.centerLeft, 
+                    alignment: Alignment.centerRight,
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),
@@ -347,6 +356,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       color: Colors.white,
                     ),
                     textAlign: TextAlign.center,
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: onLang,
+                      icon: const Icon(
+                        Icons.language,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -365,14 +385,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      buildField("الاسم الأول", firstName, Icons.person, hint: "أحمد"),
-                      buildField("الاسم الأخير", lastName, Icons.person, hint: "الغامدي"),
+                      buildField(
+                        "الاسم الأول",
+                        firstName,
+                        Icons.person,
+                        hint: "أحمد",
+                      ),
+                      buildField(
+                        "الاسم الأخير",
+                        lastName,
+                        Icons.person,
+                        hint: "الغامدي",
+                      ),
                       buildField(
                         "رقم الهوية",
                         nationalId,
                         Icons.credit_card,
                         isNumber: true,
-                        hint: "1xxxxxxxxx"
+                        hint: "1xxxxxxxxx",
                       ),
                       ...roleFields(),
                       buildField(
@@ -380,9 +410,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         phone,
                         Icons.phone,
                         isNumber: true,
-                        hint: "05xxxxxxxx"
+                        hint: "05xxxxxxxx",
                       ),
-                      buildField("البريد الإلكتروني", email, Icons.email, hint: "example@mail.com"),
+                      buildField(
+                        "البريد الإلكتروني",
+                        email,
+                        Icons.email,
+                        hint: "example@mail.com",
+                      ),
                       buildField(
                         "كلمة المرور",
                         password,
@@ -406,7 +441,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           ),
                         ),
                         child: loading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : const Text(
                                 "تسجيل الآن",
                                 style: TextStyle(
