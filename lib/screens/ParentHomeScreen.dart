@@ -69,6 +69,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         ...studentData,
         'attendanceStatus': 'حاضر',
         'updatedAt': FieldValue.serverTimestamp(),
+        'busStatus': 'في الانتظار', // ✅ إضافة الحالة الافتراضية هنا
       });
     } else {
       batch.delete(attendanceRef);

@@ -172,7 +172,23 @@ class _ChildDetailsEditDeleteScreenState
   String _secondPhone = "";
   String _schoolName = "";
   String _grade = "";
+  String _selectedGrade = "";
   String _titleName = "بيانات الابن";
+
+final List<String> _gradesList = [
+    "الأول الابتدائي",
+    "الثاني الابتدائي",
+    "الثالث الابتدائي",
+    "الرابع الابتدائي",
+    "الخامس الابتدائي",
+    "السادس الابتدائي",
+    "الأول متوسط",
+    "الثاني متوسط",
+    "الثالث متوسط",
+    "الأول ثانوي",
+    "الثاني ثانوي",
+    "الثالث ثانوي",
+  ];
 
   @override
   void dispose() {
@@ -191,6 +207,7 @@ class _ChildDetailsEditDeleteScreenState
     _secondPhone = (data['secondPhone'] ?? '').toString().trim();
     _schoolName = (data['SchoolName'] ?? '').toString().trim();
     _grade = (data['Grade'] ?? '').toString().trim();
+    _selectedGrade = _grade; // تهيئة قيمة الـ Dropdown
 
     _nameArCtrl.text = _studentNameAr;
     _nameEnCtrl.text = _studentNameEn;
@@ -210,11 +227,20 @@ class _ChildDetailsEditDeleteScreenState
       _nameArCtrl.text = _studentNameAr;
       _nameEnCtrl.text = _studentNameEn;
       _secondPhoneCtrl.text = _secondPhone;
+      _selectedGrade = _grade;
     });
   }
 
   Future<void> _saveEdits() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // التحقق من أن المستخدم اختار صفاً
+    if (_selectedGrade.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("الرجاء اختيار الصف الدراسي")),
+      );
+      return;
+    }
     setState(() => _saving = true);
 
     try {
@@ -229,6 +255,7 @@ class _ChildDetailsEditDeleteScreenState
         'StudentName_ar': _nameArCtrl.text.trim(),
         'StudentName': _nameEnCtrl.text.trim(),
         'secondPhone': _secondPhoneCtrl.text.trim(),
+        'Grade': _selectedGrade,
       });
 
       // Mapping for StudentRequests collection
@@ -236,6 +263,7 @@ class _ChildDetailsEditDeleteScreenState
         'name_ar': _nameArCtrl.text.trim(),
         'name_en': _nameEnCtrl.text.trim(),
         'secondPhone': _secondPhoneCtrl.text.trim(),
+        'Grade': _selectedGrade,
       });
 
       await batch.commit();
@@ -441,10 +469,19 @@ class _ChildDetailsEditDeleteScreenState
                                 icon: Icons.school_outlined,
                               ),
                               const SizedBox(height: 12),
-                              _ReadOnlyBox(
+                              _EditableDropdownOrReadOnly(
                                 label: "الصف",
-                                value: _grade,
                                 icon: Icons.class_outlined,
+                                isEditing: _isEditing,
+                                value: _selectedGrade,
+                                items: _gradesList,
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _selectedGrade = val;
+                                    });
+                                  }
+                                },
                               ),
                               const SizedBox(height: 24),
                               _buildDeleteButton(),
@@ -527,6 +564,7 @@ class _StudentTileCard extends StatelessWidget {
   final String name;
   final VoidCallback onTap;
   const _StudentTileCard({required this.name, required this.onTap});
+
 
   @override
   Widget build(BuildContext context) {
@@ -734,6 +772,70 @@ class _SectionTitle extends StatelessWidget {
         fontWeight: FontWeight.w900,
         fontSize: 13.5,
       ),
+    );
+  }
+}
+
+class _EditableDropdownOrReadOnly extends StatelessWidget {
+  final String label, value;
+  final IconData icon;
+  final bool isEditing;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+
+  const _EditableDropdownOrReadOnly({
+    required this.label,
+    required this.icon,
+    required this.isEditing,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isEditing) return _ReadOnlyBox(label: label, value: value, icon: icon);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF475467),
+            fontSize: 12.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          // نتحقق إذا كانت القيمة الحالية موجودة في القائمة لتجنب الـ Exception
+          value: items.contains(value) ? value : null,
+          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF98AF8D)),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFFF7F7F8),
+            prefixIcon: Icon(icon, color: const Color(0xFF98AF8D)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          items: items.map((String val) {
+            return DropdownMenuItem<String>(
+              value: val,
+              child: Text(
+                val,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF475467),
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }

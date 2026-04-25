@@ -9,6 +9,7 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:ui' as ui;
+import 'package:intl/intl.dart';
 
 import 'TripDetailsScreen.dart';
 import 'trip_pins_service.dart';
@@ -393,13 +394,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
     // ✅ Set the correct status based on the trip direction
     String newStatus = widget.isMorningTrip ? 'في الحافلة' : 'في المنزل';
 
+    // 2. ✅✅ الإضافة الجديدة: تحديث كولكشن الحضور (Attendance) لكي تنعكس الأرقام في شاشة التفاصيل ✅✅
+    // ملاحظة: تأكدي من إضافة import 'package:intl/intl.dart'; أعلى هذا الملف إذا لم تكن موجودة
+    String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     await FirebaseFirestore.instance
-        .collection('Students')
-        .doc(student.studentId)
-        .update({
+        .collection('Attendance')
+        .doc(todayDate)
+        .collection('PresentStudents')
+        .doc(student.studentId) // تأكدنا من صورة الداتا بيس أن رقم الدوكيومنت هو نفس رقم الطالب
+        .set({
           'busStatus': newStatus,
-          'lastScanTime': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
 
     if (mounted) {
       setState(() {
@@ -587,6 +592,46 @@ class _TripMapScreenState extends State<TripMapScreen> {
       debugPrint("DB Error: $e");
     }
   }
+  // 🟢 2. الصقي دالة الطوارئ هنا 🟢
+void _showEmergencyAlert() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Colors.red, size: 30),
+            SizedBox(width: 10),
+            Text("تنبيه طوارئ", textAlign: TextAlign.right),
+          ],
+        ),
+        content: const Text(
+          "هل يوجد حالة توقف طارئة؟",
+          textAlign: TextAlign.right,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // نقفل النافذة أولاً
+              Navigator.pop(ctx);
+              
+              // 🟢 هنا تكملين الكود والمنطق الخاص بك في حالة الضغط على "نعم" 🟢
+              
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text("نعم", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+  // 🟢 نهاية دالة الطوارئ 🟢
 
   @override
   Widget build(BuildContext context) {
@@ -618,6 +663,43 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       onMapCreated: (controller) =>
                           _mapController.complete(controller),
                     ),
+                    // 🟢 1. الصقي كود الأيقونة هنا بالضبط 🟢
+                    Positioned(
+                      bottom: 320, 
+                      right: 16, 
+                      child: GestureDetector(
+                        onTap: () {
+                          _showEmergencyAlert();
+                        },
+                        child: Transform.rotate(
+                          angle: 3.14159 / 4, 
+                          child: Container(
+                            width: 25,
+                            height: 25,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF03A47), 
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 6,
+                                  offset: Offset(2, 2),
+                                )
+                              ],
+                            ),
+                            child: Transform.rotate(
+                              angle: -3.14159 / 4, 
+                              child: const Icon(
+                                Icons.priority_high_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 🟢 نهاية كود الأيقونة 🟢
                     Align(
                       alignment: Alignment.bottomCenter,
                       child: _buildTripControlPanel(),
@@ -683,7 +765,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const TripDetailsScreen(),
+                // ✅ قمنا بإزالة const وأضفنا تمرير الـ busId لصفحة التفاصيل
+                builder: (context) => TripDetailsScreen(busId: widget.busId), 
               ),
             ),
           ),
@@ -904,3 +987,5 @@ Widget _buildColoredInfoRow(String imagePath, String text) {
     ),
   );
 }
+
+

@@ -219,8 +219,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       },
     );
   }
-
-  Widget _buildTripSection(
+Widget _buildTripSection(
     BuildContext context, {
     required String title,
     required String destination,
@@ -264,7 +263,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           _buildDataRow('وقت البداية', time),
           _buildDataRow('الحالة', status),
 
-          // ✅ Local filtering logic for accurate student count
+          // ✅ جعلنا الـ StreamBuilder يغطي كل من (عدد الطلاب) و (الزر) معاً
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('Attendance')
@@ -278,57 +277,79 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 count = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final studentBusId = data['BusID']?.toString() ?? '';
-
-                  // Checks if "Bus_32438_102" contains "102"
                   return studentBusId.isNotEmpty &&
                       busId.contains(studentBusId);
                 }).length;
               }
 
-              return _buildDataRow('الطلاب الحاضرين', '$count طالب');
-            },
-          ),
-
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: isActive
-                  ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TripMapScreen(
-                          busId: busId,
-                          isMorningTrip: isMorningTrip,
+              return Column(
+                children: [
+                  _buildDataRow('الطلاب الحاضرين', '$count طالب'),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      // ✅ تم إضافة شرط التأكد من عدد الطلاب هنا
+                      onPressed: isActive
+                          ? () {
+                              if (count == 0) {
+                                // 🚫 منع الانتقال وإظهار رسالة للسائق
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'لا يوجد طلاب',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    backgroundColor: Colors.redAccent,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              } else {
+                                // ✅ السماح بالانتقال للصفحة إذا كان العدد أكبر من صفر
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => TripMapScreen(
+                                      busId: busId,
+                                      isMorningTrip: isMorningTrip,
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isActive
+                            ? const Color(0xFFD4E09B)
+                            : Colors.grey.shade300,
+                        foregroundColor: const Color(0xFF0D1B36),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                    )
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isActive
-                    ? const Color(0xFFD4E09B)
-                    : Colors.grey.shade300,
-                foregroundColor: const Color(0xFF0D1B36),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                isActive ? 'ادخل على الرحلة' : 'غير متاح',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                ),
-              ),
-            ),
+                      child: Text(
+                        isActive ? 'ادخل على الرحلة' : 'غير متاح',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
-
   Widget _buildDataRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),

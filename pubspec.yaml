@@ -24,7 +24,7 @@ dependencies:
   cloud_firestore: ^6.3.0
   firebase_database: ^12.3.0
   cupertino_icons: ^1.0.8
-  easy_localization: ^3.0.7
+  easy_localization: ^3.0.8
   translator: ^1.0.4+1
   intl: ^0.20.2
   hijri: ^3.0.0
