@@ -10,15 +10,15 @@ import 'package:intl/date_symbol_data_local.dart';
 // --- استيراد الشاشات ---
 import 'auth/LoginScreen.dart';
 import 'auth/RoleSelectionScreen.dart';
-import 'shared/SharedProfileScreen.dart';
-import 'shared/SharedProfileEditScreen.dart';
+import 'shared/UserProfileScreen.dart';
+import 'shared/UserProfileEditScreen.dart';
 import 'admin/AdminHome.dart';
-import 'admin/AdminStudentListScreen.dart';
+import 'admin/StudentListScreen.dart';
 import 'admin/BusManagementScreen.dart';
 import 'parent/ParentHomeScreen.dart';
-import 'admin/AdminPendingRequestsScreen.dart';
-import 'parent/ParentChildTrackingScreen.dart';
-import 'parent/ParentMyChildrenListScreen.dart';
+import 'admin/PendingRequestsScreen.dart';
+import 'parent/ChildTrackingScreen.dart';
+import 'parent/MyChildrenListScreen.dart';
 import 'driver/DriverHomeScreen.dart';
 
 /// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
@@ -85,7 +85,7 @@ Future<Widget> _determineStartScreen() async {
   User? user = FirebaseAuth.instance.currentUser;
 
   if (user != null) {
-    return const SharedProfileScreen();
+    return const UserProfileScreen();
   } else {
     return const LoginScreen();
   }
@@ -163,15 +163,15 @@ class HafilatyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/choose_role': (context) => const RoleSelectionScreen(),
-        '/role_home': (context) => const SharedProfileScreen(),
-        '/edit_profile': (context) => const SharedProfileEditScreen(),
-        '/students_management': (context) => const AdminStudentListScreen(),
+        '/role_home': (context) => const UserProfileScreen(),
+        '/edit_profile': (context) => const UserProfileEditScreen(),
+        '/students_management': (context) => const StudentListScreen(),
         '/AdminHome': (context) => const AdminHome(),
         '/bus_management': (context) => const BusManagementScreen(),
         '/parent_home': (context) => const ParentHomeScreen(),
-        '/registration_requests': (context) => const AdminPendingRequestsScreen(),
-        '/manage_child': (_) => const ParentChildTrackingScreen(),
-        '/editDeleteChild': (context) => const ParentMyChildrenListScreen(),
+        '/registration_requests': (context) => const PendingRequestsScreen(),
+        '/manage_child': (_) => const ChildTrackingScreen(),
+        '/editDeleteChild': (context) => const MyChildrenListScreen(),
         '/driver_home': (context) => const DriverHomeScreen(),
       },
     );

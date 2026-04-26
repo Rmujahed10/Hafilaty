@@ -8,14 +8,14 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'MapPickerScreen.dart';
 
-class ParentAddChildScreen extends StatefulWidget {
-  const ParentAddChildScreen({super.key});
+class AddChildScreen extends StatefulWidget {
+  const AddChildScreen({super.key});
 
   @override
-  State<ParentAddChildScreen> createState() => _ParentAddChildScreenState();
+  State<AddChildScreen> createState() => _AddChildScreenState();
 }
 
-class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
+class _AddChildScreenState extends State<AddChildScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 

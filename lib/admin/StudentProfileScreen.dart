@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart'; // Ensure 'flutter pub add url_launcher' was run
 
-class AdminStudentProfileScreen extends StatefulWidget {
+class StudentProfileScreen extends StatefulWidget {
   final String studentDocId;
-  const AdminStudentProfileScreen({super.key, required this.studentDocId});
+  const StudentProfileScreen({super.key, required this.studentDocId});
 
   @override
-  State<AdminStudentProfileScreen> createState() => _AdminStudentProfileScreenState();
+  State<StudentProfileScreen> createState() => _StudentProfileScreenState();
 }
 
-class _AdminStudentProfileScreenState extends State<AdminStudentProfileScreen> {
+class _StudentProfileScreenState extends State<StudentProfileScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
   static const Color _kDanger = Color(0xFFD64545);
   static const Color _kSuccess = Color(0xFF6A994E);

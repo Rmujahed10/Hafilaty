@@ -5,14 +5,14 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-class ParentChildTrackingScreen extends StatefulWidget {
-  const ParentChildTrackingScreen({super.key});
+class ChildTrackingScreen extends StatefulWidget {
+  const ChildTrackingScreen({super.key});
 
   @override
-  State<ParentChildTrackingScreen> createState() => _ParentChildTrackingScreenState();
+  State<ChildTrackingScreen> createState() => _ChildTrackingScreenState();
 }
 
-class _ParentChildTrackingScreenState extends State<ParentChildTrackingScreen> {
+class _ChildTrackingScreenState extends State<ChildTrackingScreen> {
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
   static const Color _kCard = Colors.white;

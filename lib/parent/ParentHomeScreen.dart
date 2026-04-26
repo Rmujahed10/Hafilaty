@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hijri/hijri_calendar.dart'; // Import the Hijri package
-import 'ParentAddChildScreen.dart';
+import 'AddChildScreen.dart';
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
@@ -184,7 +184,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           ),
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const ParentAddChildScreen()),
+            MaterialPageRoute(builder: (_) => const AddChildScreen()),
           ),
         ),
       ],

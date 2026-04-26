@@ -2,17 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'AdminStudentProfileScreen.dart';
+import 'StudentProfileScreen.dart';
 
-class AdminStudentListScreen extends StatefulWidget {
-  const AdminStudentListScreen({super.key});
+class StudentListScreen extends StatefulWidget {
+  const StudentListScreen({super.key});
 
   @override
-  State<AdminStudentListScreen> createState() =>
-      _AdminStudentListScreenState();
+  State<StudentListScreen> createState() =>
+      _StudentListScreenState();
 }
 
-class _AdminStudentListScreenState extends State<AdminStudentListScreen> {
+class _StudentListScreenState extends State<StudentListScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
@@ -220,7 +220,7 @@ class _AdminStudentListScreenState extends State<AdminStudentListScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => AdminStudentProfileScreen(studentDocId: doc.id),
+                    builder: (_) => StudentProfileScreen(studentDocId: doc.id),
                   ),
                 );
               },

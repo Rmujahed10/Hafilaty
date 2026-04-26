@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class AdminPendingRequestsScreen extends StatefulWidget {
-  const AdminPendingRequestsScreen({super.key});
+class PendingRequestsScreen extends StatefulWidget {
+  const PendingRequestsScreen({super.key});
 
   @override
-  State<AdminPendingRequestsScreen> createState() => _AdminPendingRequestsScreenState();
+  State<PendingRequestsScreen> createState() => _PendingRequestsScreenState();
 }
 
-class _AdminPendingRequestsScreenState extends State<AdminPendingRequestsScreen> {
+class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);

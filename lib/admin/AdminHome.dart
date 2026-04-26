@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'AdminPendingRequestsScreen.dart';
+import 'PendingRequestsScreen.dart';
 
 class AdminHome extends StatefulWidget {
   final Map<String, dynamic>? schoolData;
@@ -312,7 +312,7 @@ class _AdminHomeState extends State<AdminHome> {
             return InkWell(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AdminPendingRequestsScreen()),
+                MaterialPageRoute(builder: (_) => const PendingRequestsScreen()),
               ),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 10),

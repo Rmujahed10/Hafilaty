@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ParentMyChildrenListScreen extends StatefulWidget {
-  const ParentMyChildrenListScreen({super.key});
+class MyChildrenListScreen extends StatefulWidget {
+  const MyChildrenListScreen({super.key});
 
   @override
-  State<ParentMyChildrenListScreen> createState() => _ParentMyChildrenListScreenState();
+  State<MyChildrenListScreen> createState() => _MyChildrenListScreenState();
 }
 
-class _ParentMyChildrenListScreenState extends State<ParentMyChildrenListScreen> {
+class _MyChildrenListScreenState extends State<MyChildrenListScreen> {
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
 
