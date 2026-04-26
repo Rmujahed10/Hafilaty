@@ -32,17 +32,25 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   String? selectedSchoolName;
   String? selectedSchoolId;
   String? selectedGrade;
+  String? selectedGender;
+  String? currentEduLevel;
 
-  final List<String> grades = [
+  final List<String> primaryGrades = [
     "الأول ابتدائي",
     "الثاني ابتدائي",
     "الثالث ابتدائي",
     "الرابع ابتدائي",
     "الخامس ابتدائي",
     "السادس ابتدائي",
+  ];
+
+  final List<String> middleGrades = [
     "الأول متوسط",
     "الثاني متوسط",
     "الثالث متوسط",
+  ];
+
+  final List<String> highGrades = [
     "الأول ثانوي",
     "الثاني ثانوي",
     "الثالث ثانوي",
@@ -188,6 +196,8 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                   },
                                 ),
 
+                                _buildGenderDropdown(), // ✅ هذا السطر اللي ناقصك
+
                                 _buildSmartField(
                                   "رقم الهوية",
                                   _idNumber,
@@ -260,6 +270,28 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildGenderDropdown() {
+    return _dropdownWrapper(
+      label: "جنس الطالب",
+      child: DropdownButtonFormField<String>(
+        decoration: const InputDecoration(border: InputBorder.none),
+        value: selectedGender,
+        hint: const Text("اختر الجنس"),
+        items: const [
+          DropdownMenuItem(value: "male", child: Text("ولد")),
+          DropdownMenuItem(value: "female", child: Text("بنت")),
+        ],
+        onChanged: (val) {
+          setState(() {
+            selectedGender = val;
+            selectedSchoolId = null; // مهم
+          });
+        },
+        validator: (v) => v == null ? "الرجاء اختيار الجنس" : null,
       ),
     );
   }
@@ -431,32 +463,44 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
 
   Widget _buildSchoolDropdown() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection("Schools").snapshots(),
+      stream: selectedGender == null
+          ? null
+          : FirebaseFirestore.instance
+                .collection("Schools")
+                .where("gender", isEqualTo: selectedGender)
+                .snapshots(),
       builder: (context, snapshot) {
         return _dropdownWrapper(
           label: "المدرسة",
           child: DropdownButtonFormField<String>(
             decoration: const InputDecoration(border: InputBorder.none),
-            initialValue:
-                selectedSchoolId, // FIXED: Use initialValue instead of value
-            items: snapshot.hasData
-                ? snapshot.data!.docs
-                      .map(
-                        (doc) => DropdownMenuItem(
-                          value: doc.id,
-                          child: Text(doc['School Name_ar']),
-                        ),
-                      )
-                      .toList()
+            value: selectedSchoolId,
+            hint: Text(
+              selectedGender == null ? "اختر الجنس أولاً" : "اختر المدرسة",
+            ),
+            items: (snapshot.hasData && selectedGender != null)
+                ? snapshot.data!.docs.map((doc) {
+                    return DropdownMenuItem(
+                      value: doc.id,
+                      child: Text(doc['School Name_ar']),
+                    );
+                  }).toList()
                 : [],
-            onChanged: (val) {
-              setState(() {
-                selectedSchoolId = val;
-                selectedSchoolName = snapshot.data!.docs.firstWhere(
-                  (d) => d.id == val,
-                )['School Name_ar'];
-              });
-            },
+            onChanged: selectedGender == null
+                ? null
+                : (val) {
+                    final selectedDoc = snapshot.data!.docs.firstWhere(
+                      (d) => d.id == val,
+                    );
+                    setState(() {
+                      selectedSchoolId = val;
+                      selectedSchoolName = selectedDoc['School Name_ar'];
+                      currentEduLevel =
+                          selectedDoc['EduLevel']; // جلب المرحلة من الداتا
+                      selectedGrade = null; // تصفير الصف عند تغيير المدرسة
+                    });
+                  },
+            validator: (v) => v == null ? "الرجاء اختيار المدرسة" : null,
           ),
         );
       },
@@ -464,15 +508,33 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
   }
 
   Widget _buildGradeDropdown() {
+    // تحديد القائمة المناسبة بناءً على EduLevel المخزن في قاعدة البيانات
+    List<String> currentGradesList = [];
+    if (currentEduLevel == "Primary School" ||
+        currentEduLevel == "Elementary School") {
+      currentGradesList = primaryGrades;
+    } else if (currentEduLevel == "Middle School") {
+      currentGradesList = middleGrades;
+    } else if (currentEduLevel == "High School") {
+      currentGradesList = highGrades;
+    }
+
     return _dropdownWrapper(
       label: "الصف الدراسي",
       child: DropdownButtonFormField<String>(
         decoration: const InputDecoration(border: InputBorder.none),
-        initialValue: selectedGrade, // FIXED: Use initialValue instead of value
-        items: grades
+        value: selectedGrade,
+        hint: Text(
+          selectedSchoolId == null ? "اختر المدرسة أولاً" : "اختر الصف",
+        ),
+        // إذا لم يتم اختيار مدرسة، تكون القائمة فارغة
+        items: currentGradesList
             .map((g) => DropdownMenuItem(value: g, child: Text(g)))
             .toList(),
-        onChanged: (val) => setState(() => selectedGrade = val),
+        onChanged: currentEduLevel == null
+            ? null
+            : (val) => setState(() => selectedGrade = val),
+        validator: (v) => v == null ? "الرجاء اختيار الصف" : null,
       ),
     );
   }
