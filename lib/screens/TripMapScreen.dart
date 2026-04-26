@@ -10,7 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:ui' as ui;
 import 'package:intl/intl.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 import 'TripDetailsScreen.dart';
 import 'trip_pins_service.dart';
 import 'trip_navigation_service.dart';
@@ -401,10 +401,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
         .collection('Attendance')
         .doc(todayDate)
         .collection('PresentStudents')
-        .doc(student.studentId) // تأكدنا من صورة الداتا بيس أن رقم الدوكيومنت هو نفس رقم الطالب
-        .set({
-          'busStatus': newStatus,
-        }, SetOptions(merge: true));
+        .doc(
+          student.studentId,
+        ) // تأكدنا من صورة الداتا بيس أن رقم الدوكيومنت هو نفس رقم الطالب
+        .set({'busStatus': newStatus}, SetOptions(merge: true));
 
     if (mounted) {
       setState(() {
@@ -510,8 +510,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
       String wayStr = wayPoints.map((w) => w.location).join('|');
       String apiKey = 'AIzaSyASw9kOAjo6lWB5OX7oFFGU40CCGFPVJYY';
       String url =
-          "https://maps.googleapis.com/maps/api/directions/json?origin=$originStr&destination=$destStr&waypoints=$wayStr&mode=driving&optimizeWaypoints=true&key=$apiKey";
-
+          "https://maps.googleapis.com/maps/api/directions/json?origin=$originStr&destination=$destStr&waypoints=$wayStr&mode=driving&optimizeWaypoints=true&departure_time=now&key=$apiKey";
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -592,42 +591,278 @@ class _TripMapScreenState extends State<TripMapScreen> {
       debugPrint("DB Error: $e");
     }
   }
+
   // 🟢 2. الصقي دالة الطوارئ هنا 🟢
-void _showEmergencyAlert() {
+  // 🟢 دالة الطوارئ مع جلب رقم الإدارة من كولكشن users 🟢
+  void _showEmergencyAlert() async {
+    String? _selectedReason;
+    String? _adminPhoneFromDb;
+
+    final List<String> _reasons = [
+      "ازدحام مروري",
+      "الطريق مغلق",
+      "عطل في الحافلة",
+      "سوء حالة الطقس",
+      "حالة طوارئ أخرى",
+    ];
+
+    // 1. جلب رقم الإدارة (الأدمن) من قاعدة البيانات
+    try {
+      // نفترض أن _schoolModel يحتوي على معرف المدرسة (مثلاً _schoolModel!.id أو الحقل المناسب لديك)
+      // إذا لم يكن متوفراً يمكنك استبدال _schoolModel!.id بالقيمة "32438" مؤقتاً للتجربة
+      String currentSchoolId = _schoolModel?.schoolId ?? "32438";
+
+      var adminQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .where('schoolId', isEqualTo: currentSchoolId)
+          .limit(1)
+          .get();
+
+      if (adminQuery.docs.isNotEmpty) {
+        // جلب الرقم من حقل phone كما هو موضح في صورتك
+        _adminPhoneFromDb = adminQuery.docs.first.data()['phone'];
+      }
+
+      // رقم افتراضي في حال لم يتم العثور على الأدمن في قاعدة البيانات
+      _adminPhoneFromDb ??= "911";
+    } catch (e) {
+      debugPrint("خطأ في جلب رقم الإدارة: $e");
+      _adminPhoneFromDb = "911";
+    }
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.warning_rounded, color: Colors.red, size: 30),
-            SizedBox(width: 10),
-            Text("تنبيه طوارئ", textAlign: TextAlign.right),
-          ],
-        ),
-        content: const Text(
-          "هل يوجد حالة توقف طارئة؟",
-          textAlign: TextAlign.right,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("إلغاء", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // نقفل النافذة أولاً
-              Navigator.pop(ctx);
-              
-              // 🟢 هنا تكملين الكود والمنطق الخاص بك في حالة الضغط على "نعم" 🟢
-              
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          bool isOtherReason = _selectedReason == "حالة طوارئ أخرى";
+
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.report_problem_rounded,
+                  color: Color(0xFFF03A47),
+                  size: 30,
+                ),
+                SizedBox(width: 10),
+                Text("تغيير المسار", textAlign: TextAlign.right),
+              ],
             ),
-            child: const Text("نعم", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text(
+                  "ما هو سبب التغيير؟",
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                ..._reasons.map((reason) {
+                  return RadioListTile<String>(
+                    title: Text(
+                      reason,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    value: reason,
+                    groupValue: _selectedReason,
+                    activeColor: const Color(0xFFF03A47),
+                    onChanged: (value) =>
+                        setStateDialog(() => _selectedReason = value),
+                  );
+                }).toList(),
+
+                // 📞 ظهور رقم الإدارة ديناميكياً من الفايربيس عند اختيار "حالة طوارئ أخرى"
+                if (isOtherReason)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          " الاتصال بالإدارة مباشرة",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _adminPhoneFromDb!,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  "إلغاء",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: _selectedReason == null
+                    ? null
+                    : () async {
+                        Navigator.pop(ctx);
+
+                        if (isOtherReason) {
+                          // 📞 حالة الاتصال المباشر 📞
+                          final Uri launchUri = Uri(
+                            scheme: 'tel',
+                            path: _adminPhoneFromDb,
+                          );
+
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('LiveNotifications')
+                                .add({
+                                  'type': 'admin_alert',
+                                  'busId': widget.busId,
+                                  'title':
+                                      '🚨 طوارئ: حافلة رقم ${widget.busId}',
+                                  'body':
+                                      'السائق يحاول الاتصال بك بسبب حالة طوارئ أخرى.',
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                  'isRead': false,
+                                });
+
+                            if (await canLaunchUrl(launchUri)) {
+                              await launchUrl(launchUri);
+                            }
+                          } catch (e) {
+                            debugPrint("خطأ في محاولة الاتصال: $e");
+                          }
+                        } else {
+                          // 🔔 حالة الإشعارات وإعادة حساب المسار 🔔
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "جاري إرسال التنبيهات وإعادة حساب المسار...",
+                              ),
+                            ),
+                          );
+
+                          try {
+                            // 1. إشعار الإدارة
+                            await FirebaseFirestore.instance
+                                .collection('LiveNotifications')
+                                .add({
+                                  'type': 'admin_alert',
+                                  'busId': widget.busId,
+                                  'title':
+                                      '🚨 تغيير مسار: حافلة رقم ${widget.busId}',
+                                  'body':
+                                      'قام السائق بتغيير المسار بسبب: $_selectedReason',
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                  'isRead': false,
+                                });
+
+                            // 2. إشعار أولياء الأمور
+                            String todayDate = DateFormat(
+                              'yyyy-MM-dd',
+                            ).format(DateTime.now());
+                            var attendanceSnapshot = await FirebaseFirestore
+                                .instance
+                                .collection('Attendance')
+                                .doc(todayDate)
+                                .collection('PresentStudents')
+                                .where('busStatus', isEqualTo: 'في الحافلة')
+                                .get();
+
+                            for (var doc in attendanceSnapshot.docs) {
+                              var studentDoc = await FirebaseFirestore.instance
+                                  .collection('Students')
+                                  .doc(doc.id)
+                                  .get();
+                              String parentPhone =
+                                  studentDoc.data()?['parentPhone'] ?? '';
+
+                              if (parentPhone.isNotEmpty) {
+                                await FirebaseFirestore.instance
+                                    .collection('LiveNotifications')
+                                    .add({
+                                      'type': 'individual',
+                                      'targetPhone': parentPhone,
+                                      'title': 'تحديث مسار الرحلة ⚠️',
+                                      'body':
+                                          'تم تغيير مسار الحافلة بسبب ($_selectedReason). أبناؤكم بخير داخل الحافلة ونعمل على وصولهم بأمان.',
+                                      'createdAt': FieldValue.serverTimestamp(),
+                                    });
+                              }
+                            }
+
+                            // 3. تحديث حالة الحافلة
+                            await FirebaseFirestore.instance
+                                .collection('Buses')
+                                .doc(widget.busId)
+                                .set({
+                                  'routeChangeReason': _selectedReason,
+                                  'lastActionTime':
+                                      FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
+
+                            // 4. إعادة حساب المسار
+                            await _getRoutePolyline();
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "تم إشعار الإدارة والأهالي بنجاح!",
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint("خطأ في العملية: $e");
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isOtherReason
+                      ? Colors.green
+                      : const Color(0xFFF03A47),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isOtherReason)
+                      const Icon(Icons.call, color: Colors.white, size: 18),
+                    if (isOtherReason) const SizedBox(width: 5),
+                    Text(
+                      isOtherReason ? "اتصال" : "تأكيد",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -665,30 +900,30 @@ void _showEmergencyAlert() {
                     ),
                     // 🟢 1. الصقي كود الأيقونة هنا بالضبط 🟢
                     Positioned(
-                      bottom: 320, 
-                      right: 16, 
+                      bottom: 320,
+                      right: 16,
                       child: GestureDetector(
                         onTap: () {
                           _showEmergencyAlert();
                         },
                         child: Transform.rotate(
-                          angle: 3.14159 / 4, 
+                          angle: 3.14159 / 4,
                           child: Container(
                             width: 25,
                             height: 25,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF03A47), 
+                              color: const Color(0xFFF03A47),
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: const [
                                 BoxShadow(
                                   color: Colors.black26,
                                   blurRadius: 6,
                                   offset: Offset(2, 2),
-                                )
+                                ),
                               ],
                             ),
                             child: Transform.rotate(
-                              angle: -3.14159 / 4, 
+                              angle: -3.14159 / 4,
                               child: const Icon(
                                 Icons.priority_high_rounded,
                                 color: Colors.white,
@@ -766,7 +1001,7 @@ void _showEmergencyAlert() {
               context,
               MaterialPageRoute(
                 // ✅ قمنا بإزالة const وأضفنا تمرير الـ busId لصفحة التفاصيل
-                builder: (context) => TripDetailsScreen(busId: widget.busId), 
+                builder: (context) => TripDetailsScreen(busId: widget.busId),
               ),
             ),
           ),
@@ -987,5 +1222,3 @@ Widget _buildColoredInfoRow(String imagePath, String text) {
     ),
   );
 }
-
-

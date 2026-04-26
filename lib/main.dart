@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,9 +23,7 @@ import 'screens/DriverHomeScreen.dart';
 /// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  if (kDebugMode) {
-    print("Background message received: ${message.messageId}");
-  }
+  print("Background message received: ${message.messageId}");
 }
 
 /// 🔔 طلب إذن الإشعارات
@@ -40,13 +37,9 @@ Future<void> requestNotificationPermission() async {
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    if (kDebugMode) {
-      print("User granted notification permission");
-    }
+    print("User granted notification permission");
   } else {
-    if (kDebugMode) {
-      print("User denied notification permission");
-    }
+    print("User denied notification permission");
   }
 }
 
@@ -55,9 +48,7 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await requestNotificationPermission();
 
@@ -156,8 +147,7 @@ class HafilatyApp extends StatelessWidget {
           if (snapshot.hasData) {
             return snapshot.data!;
           }
-          return const Scaffold(
-              body: Center(child: Text("Error loading app")));
+          return const Scaffold(body: Center(child: Text("Error loading app")));
         },
       ),
 
@@ -173,7 +163,8 @@ class HafilatyApp extends StatelessWidget {
         '/registration_requests': (context) => const RegistrationRequests(),
         '/manage_child': (_) => const ManageChildScreen(),
         '/editDeleteChild': (context) => const EditDeleteChildScreen(),
-        '/driver_home': (context) => const DriverHomeScreen(),      },
+        '/driver_home': (context) => const DriverHomeScreen(),
+      },
     );
   }
 }

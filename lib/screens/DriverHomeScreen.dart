@@ -219,7 +219,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       },
     );
   }
-Widget _buildTripSection(
+
+  Widget _buildTripSection(
     BuildContext context, {
     required String title,
     required String destination,
@@ -334,7 +335,7 @@ Widget _buildTripSection(
                         ),
                       ),
                       child: Text(
-                        isActive ? 'ادخل على الرحلة' : 'غير متاح',
+                        isActive ? 'تفاصيل الرحلة' : 'غير متاح',
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 14,
@@ -350,6 +351,7 @@ Widget _buildTripSection(
       ),
     );
   }
+
   Widget _buildDataRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
