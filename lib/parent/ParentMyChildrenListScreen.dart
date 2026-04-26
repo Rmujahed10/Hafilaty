@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class EditDeleteChildScreen extends StatefulWidget {
-  const EditDeleteChildScreen({super.key});
+class ParentMyChildrenListScreen extends StatefulWidget {
+  const ParentMyChildrenListScreen({super.key});
 
   @override
-  State<EditDeleteChildScreen> createState() => _EditDeleteChildScreenState();
+  State<ParentMyChildrenListScreen> createState() => _ParentMyChildrenListScreenState();
 }
 
-class _EditDeleteChildScreenState extends State<EditDeleteChildScreen> {
+class _ParentMyChildrenListScreenState extends State<ParentMyChildrenListScreen> {
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
 
@@ -175,7 +175,7 @@ class _ChildDetailsEditDeleteScreenState
   String _selectedGrade = "";
   String _titleName = "بيانات الابن";
 
-final List<String> _gradesList = [
+  final List<String> _gradesList = [
     "الأول الابتدائي",
     "الثاني الابتدائي",
     "الثالث الابتدائي",
@@ -245,6 +245,43 @@ final List<String> _gradesList = [
 
     try {
       final db = FirebaseFirestore.instance;
+
+      // 🛑 NEW CONSTRAINT: Check for any active trips BEFORE saving edits
+      final studentDoc = await db
+          .collection('Students')
+          .doc(widget.studentId)
+          .get();
+      final schoolId = studentDoc.data()?['SchoolID'];
+
+      if (schoolId != null) {
+        final activeBusesQuery = await db
+            .collection('Buses')
+            .where('SchoolID', isEqualTo: schoolId)
+            .get();
+
+        bool hasActiveTrip = activeBusesQuery.docs.any((doc) {
+          final data = doc.data();
+          return data['morningTripStatus'] == 'جارية' ||
+              data['afternoonTripStatus'] == 'جارية';
+        });
+
+        if (hasActiveTrip) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  "لا يمكن التعديل الآن: يوجد حافلة في رحلة جارية. يرجى الانتظار لحماية مسار السائق.",
+                ),
+                backgroundColor: _kDanger,
+              ),
+            );
+            setState(() => _saving = false);
+          }
+          return; // Abort completely!
+        }
+      }
+      // 🛑 END OF NEW CONSTRAINT
+
       final batch = db.batch();
 
       final studentRef = db.collection('Students').doc(widget.studentId);
@@ -283,10 +320,11 @@ final List<String> _gradesList = [
         context,
       ).showSnackBar(const SnackBar(content: Text("تم تحديث البيانات بنجاح")));
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحفظ")));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -333,6 +371,42 @@ final List<String> _gradesList = [
 
     try {
       final db = FirebaseFirestore.instance;
+
+      // 🛑 NEW CONSTRAINT: Check for active trips BEFORE deleting
+      final studentDoc = await db
+          .collection('Students')
+          .doc(widget.studentId)
+          .get();
+      final schoolId = studentDoc.data()?['SchoolID'];
+
+      if (schoolId != null) {
+        final activeBusesQuery = await db
+            .collection('Buses')
+            .where('SchoolID', isEqualTo: schoolId)
+            .get();
+
+        bool hasActiveTrip = activeBusesQuery.docs.any((doc) {
+          final data = doc.data();
+          return data['morningTripStatus'] == 'جارية' ||
+              data['afternoonTripStatus'] == 'جارية';
+        });
+
+        if (hasActiveTrip) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  "لا يمكن الحذف الآن: يوجد حافلة في رحلة جارية. يرجى الانتظار لحماية مسار السائق.",
+                ),
+                backgroundColor: _kDanger,
+              ),
+            );
+          }
+          return; // Abort completely!
+        }
+      }
+      // 🛑 END OF NEW CONSTRAINT
+
       final batch = db.batch();
 
       // IDs are identical, so we delete from both collections directly
@@ -347,10 +421,11 @@ final List<String> _gradesList = [
       );
       Navigator.pop(context);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("فشل الحذف. يرجى المحاولة لاحقاً")),
         );
+      }
     }
   }
 
@@ -564,7 +639,6 @@ class _StudentTileCard extends StatelessWidget {
   final String name;
   final VoidCallback onTap;
   const _StudentTileCard({required this.name, required this.onTap});
-
 
   @override
   Widget build(BuildContext context) {
@@ -795,7 +869,7 @@ class _EditableDropdownOrReadOnly extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!isEditing) return _ReadOnlyBox(label: label, value: value, icon: icon);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -810,7 +884,7 @@ class _EditableDropdownOrReadOnly extends StatelessWidget {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           // نتحقق إذا كانت القيمة الحالية موجودة في القائمة لتجنب الـ Exception
-          value: items.contains(value) ? value : null,
+          initialValue: items.contains(value) ? value : null,
           icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF98AF8D)),
           decoration: InputDecoration(
             filled: true,

@@ -51,6 +51,26 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
     if (currentSchoolId == null) return;
 
     try {
+      // 🛑 NEW CONSTRAINT: Check for any active trips BEFORE doing anything else
+      final activeBusesQuery = await FirebaseFirestore.instance
+          .collection('Buses')
+          .where('SchoolID', isEqualTo: int.parse(currentSchoolId!))
+          .get();
+
+      bool hasActiveTrip = activeBusesQuery.docs.any((doc) {
+        final data = doc.data();
+        return data['morningTripStatus'] == 'جارية' ||
+            data['afternoonTripStatus'] == 'جارية';
+      });
+
+      if (hasActiveTrip) {
+        _showWarning(
+          "لا يمكن تعديل الأسطول الآن: يوجد حافلة في رحلة جارية حالياً. الرجاء الانتظار حتى اكتمال جميع الرحلات لتجنب تعطيل مسارات السائقين.",
+        );
+        return; // Abort completely so the Cloud Function is never triggered
+      }
+      // 🛑 END OF NEW CONSTRAINT
+
       // ✅ Validate driver availability BEFORE adding a bus
       if (change > 0) {
         // REMOVED schoolId filter. Now fetches all drivers.
@@ -405,16 +425,18 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
   }
 
   Widget _buildBusList() {
-    if (currentSchoolId == null)
+    if (currentSchoolId == null) {
       return const Center(child: Text("خطأ في البيانات"));
+    }
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Buses')
           .where('SchoolID', isEqualTo: int.parse(currentSchoolId!))
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
         final buses = snapshot.data?.docs ?? [];
         return ListView.builder(
           padding: const EdgeInsets.all(16),

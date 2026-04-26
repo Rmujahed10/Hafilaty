@@ -8,14 +8,14 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'MapPickerScreen.dart';
 
-class RegisterStudentScreen extends StatefulWidget {
-  const RegisterStudentScreen({super.key});
+class ParentAddChildScreen extends StatefulWidget {
+  const ParentAddChildScreen({super.key});
 
   @override
-  State<RegisterStudentScreen> createState() => _RegisterStudentScreenState();
+  State<ParentAddChildScreen> createState() => _ParentAddChildScreenState();
 }
 
-class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
+class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
@@ -169,10 +169,12 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                     ),
                                   ],
                                   validator: (v) {
-                                    if (v == null || v.isEmpty)
+                                    if (v == null || v.isEmpty) {
                                       return "الاسم مطلوب";
-                                    if (v.trim().split(' ').length < 3)
+                                    }
+                                    if (v.trim().split(' ').length < 3) {
                                       return "يجب إدخال الاسم ثلاثي";
+                                    }
                                     return null;
                                   },
                                 ),
@@ -188,10 +190,12 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                     ),
                                   ],
                                   validator: (v) {
-                                    if (v == null || v.isEmpty)
+                                    if (v == null || v.isEmpty) {
                                       return "Name is required";
-                                    if (v.trim().split(' ').length < 3)
+                                    }
+                                    if (v.trim().split(' ').length < 3) {
                                       return "Please enter triple name";
+                                    }
                                     return null;
                                   },
                                 ),
@@ -208,10 +212,12 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                     LengthLimitingTextInputFormatter(10),
                                   ],
                                   validator: (v) {
-                                    if (v == null || v.isEmpty)
+                                    if (v == null || v.isEmpty) {
                                       return "رقم الهوية مطلوب";
-                                    if (v.length != 10)
+                                    }
+                                    if (v.length != 10) {
                                       return "يجب أن يتكون من 10 أرقام";
+                                    }
                                     return null;
                                   },
                                 ),
@@ -241,10 +247,12 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
                                   ],
                                   validator: (v) {
                                     if (v != null && v.isNotEmpty) {
-                                      if (v.length != 10)
+                                      if (v.length != 10) {
                                         return "يجب أن يكون 10 أرقام";
-                                      if (!v.startsWith('05'))
+                                      }
+                                      if (!v.startsWith('05')) {
                                         return "يجب أن يبدأ بـ 05";
+                                      }
                                     }
                                     return null;
                                   },
@@ -279,7 +287,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
       label: "جنس الطالب",
       child: DropdownButtonFormField<String>(
         decoration: const InputDecoration(border: InputBorder.none),
-        value: selectedGender,
+        initialValue: selectedGender,
         hint: const Text("اختر الجنس"),
         items: const [
           DropdownMenuItem(value: "male", child: Text("ولد")),
@@ -474,7 +482,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
           label: "المدرسة",
           child: DropdownButtonFormField<String>(
             decoration: const InputDecoration(border: InputBorder.none),
-            value: selectedSchoolId,
+            initialValue: selectedSchoolId,
             hint: Text(
               selectedGender == null ? "اختر الجنس أولاً" : "اختر المدرسة",
             ),
@@ -523,7 +531,7 @@ class _RegisterStudentScreenState extends State<RegisterStudentScreen> {
       label: "الصف الدراسي",
       child: DropdownButtonFormField<String>(
         decoration: const InputDecoration(border: InputBorder.none),
-        value: selectedGrade,
+        initialValue: selectedGrade,
         hint: Text(
           selectedSchoolId == null ? "اختر المدرسة أولاً" : "اختر الصف",
         ),

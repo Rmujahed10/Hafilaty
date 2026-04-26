@@ -2,17 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'StudentInfoScreen.dart';
+import 'AdminStudentProfileScreen.dart';
 
-class StudentsManagementScreen extends StatefulWidget {
-  const StudentsManagementScreen({super.key});
+class AdminStudentListScreen extends StatefulWidget {
+  const AdminStudentListScreen({super.key});
 
   @override
-  State<StudentsManagementScreen> createState() =>
-      _StudentsManagementScreenState();
+  State<AdminStudentListScreen> createState() =>
+      _AdminStudentListScreenState();
 }
 
-class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
+class _AdminStudentListScreenState extends State<AdminStudentListScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
@@ -135,8 +135,9 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
   }
 
   Widget _buildStudentList() {
-    if (currentSchoolId == null)
+    if (currentSchoolId == null) {
       return const Center(child: Text("خطأ في تحميل البيانات"));
+    }
 
     int schoolIdInt = int.parse(currentSchoolId!);
 
@@ -219,7 +220,7 @@ class _StudentsManagementScreenState extends State<StudentsManagementScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => StudentInfoScreen(studentDocId: doc.id),
+                    builder: (_) => AdminStudentProfileScreen(studentDocId: doc.id),
                   ),
                 );
               },

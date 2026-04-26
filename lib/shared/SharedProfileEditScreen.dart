@@ -7,14 +7,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // --- IMPORT YOUR VALIDATOR LOGIC ---
 import 'package:hafilaty/utils/validators.dart';
 
-class EditAccountScreen extends StatefulWidget {
-  const EditAccountScreen({super.key});
+class SharedProfileEditScreen extends StatefulWidget {
+  const SharedProfileEditScreen({super.key});
 
   @override
-  State<EditAccountScreen> createState() => _EditAccountScreenState();
+  State<SharedProfileEditScreen> createState() => _SharedProfileEditScreenState();
 }
 
-class _EditAccountScreenState extends State<EditAccountScreen> {
+class _SharedProfileEditScreenState extends State<SharedProfileEditScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);

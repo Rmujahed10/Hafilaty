@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-import 'ChooseRoleScreen.dart';
+import 'RoleSelectionScreen.dart';
 
 const Color _kDarkBlue = Color(0xFF0D1B36);
 const Color _kGreenAccent = Color(0xFF6A994E);
@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const ChooseRoleScreen(),
+                        builder: (context) => const RoleSelectionScreen(),
                       ),
                     );
                   },

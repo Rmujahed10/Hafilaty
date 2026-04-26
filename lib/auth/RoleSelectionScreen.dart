@@ -1,10 +1,10 @@
 // ignore_for_file: file_names
 
 import 'package:flutter/material.dart';
-import 'RegistrationScreen.dart';
+import 'SignUpScreen.dart';
 
-class ChooseRoleScreen extends StatelessWidget {
-  const ChooseRoleScreen({super.key});
+class RoleSelectionScreen extends StatelessWidget {
+  const RoleSelectionScreen({super.key});
 
   // --- Styling Constants ---
   static const Color _kBg = Color(0xFFF2F3F5);
@@ -14,7 +14,7 @@ class ChooseRoleScreen extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) =>
-            RegistrationScreen(role: roleKey, successRoute: "/login"),
+            SignUpScreen(role: roleKey, successRoute: "/login"),
       ),
     );
   }

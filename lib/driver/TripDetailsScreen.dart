@@ -1,4 +1,5 @@
 // ignore_for_file: file_names
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' hide TextDirection; 
@@ -41,7 +42,9 @@ class TripDetailsScreen extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.language, color: Colors.white, size: 22),
               onPressed: () {
-                print("تغيير اللغة");
+                if (kDebugMode) {
+                  print("تغيير اللغة");
+                }
               },
             ),
           ],
@@ -228,7 +231,7 @@ class _StudentTile extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4), 
+          BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 4), 
         ],
       ),
       child: ListTile(

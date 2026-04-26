@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,23 +8,27 @@ import 'firebase_options.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 // --- استيراد الشاشات ---
-import 'screens/LoginScreen.dart';
-import 'screens/ChooseRoleScreen.dart';
-import 'screens/RoleHomeScreen.dart';
-import 'screens/EditAccountScreen.dart';
-import 'screens/AdminHome.dart';
-import 'screens/StudentsManagementScreen.dart';
-import 'screens/BusManagementScreen.dart';
-import 'screens/ParentHomeScreen.dart';
-import 'screens/RegistrationRequests.dart';
-import 'screens/ManageChildScreen.dart';
-import 'screens/editDeleteChild.dart';
-import 'screens/DriverHomeScreen.dart';
+import 'auth/LoginScreen.dart';
+import 'auth/RoleSelectionScreen.dart';
+import 'shared/SharedProfileScreen.dart';
+import 'shared/SharedProfileEditScreen.dart';
+import 'admin/AdminHome.dart';
+import 'admin/AdminStudentListScreen.dart';
+import 'admin/BusManagementScreen.dart';
+import 'parent/ParentHomeScreen.dart';
+import 'admin/AdminPendingRequestsScreen.dart';
+import 'parent/ParentChildTrackingScreen.dart';
+import 'parent/ParentMyChildrenListScreen.dart';
+import 'driver/DriverHomeScreen.dart';
 
 /// 🔔 استقبال الإشعارات عندما يكون التطبيق في الخلفية
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print("Background message received: ${message.messageId}");
+  if (kDebugMode) {
+    if (kDebugMode) {
+      print("Background message received: ${message.messageId}");
+    }
+  }
 }
 
 /// 🔔 طلب إذن الإشعارات
@@ -37,9 +42,13 @@ Future<void> requestNotificationPermission() async {
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    print("User granted notification permission");
+    if (kDebugMode) {
+      print("User granted notification permission");
+    }
   } else {
-    print("User denied notification permission");
+    if (kDebugMode) {
+      print("User denied notification permission");
+    }
   }
 }
 
@@ -76,7 +85,7 @@ Future<Widget> _determineStartScreen() async {
   User? user = FirebaseAuth.instance.currentUser;
 
   if (user != null) {
-    return const RoleHomeScreen();
+    return const SharedProfileScreen();
   } else {
     return const LoginScreen();
   }
@@ -153,16 +162,16 @@ class HafilatyApp extends StatelessWidget {
 
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/choose_role': (context) => const ChooseRoleScreen(),
-        '/role_home': (context) => const RoleHomeScreen(),
-        '/edit_profile': (context) => const EditAccountScreen(),
-        '/students_management': (context) => const StudentsManagementScreen(),
+        '/choose_role': (context) => const RoleSelectionScreen(),
+        '/role_home': (context) => const SharedProfileScreen(),
+        '/edit_profile': (context) => const SharedProfileEditScreen(),
+        '/students_management': (context) => const AdminStudentListScreen(),
         '/AdminHome': (context) => const AdminHome(),
         '/bus_management': (context) => const BusManagementScreen(),
         '/parent_home': (context) => const ParentHomeScreen(),
-        '/registration_requests': (context) => const RegistrationRequests(),
-        '/manage_child': (_) => const ManageChildScreen(),
-        '/editDeleteChild': (context) => const EditDeleteChildScreen(),
+        '/registration_requests': (context) => const AdminPendingRequestsScreen(),
+        '/manage_child': (_) => const ParentChildTrackingScreen(),
+        '/editDeleteChild': (context) => const ParentMyChildrenListScreen(),
         '/driver_home': (context) => const DriverHomeScreen(),
       },
     );

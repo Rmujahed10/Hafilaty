@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class RegistrationRequests extends StatefulWidget {
-  const RegistrationRequests({super.key});
+class AdminPendingRequestsScreen extends StatefulWidget {
+  const AdminPendingRequestsScreen({super.key});
 
   @override
-  State<RegistrationRequests> createState() => _RegistrationRequestsState();
+  State<AdminPendingRequestsScreen> createState() => _AdminPendingRequestsScreenState();
 }
 
-class _RegistrationRequestsState extends State<RegistrationRequests> {
+class _AdminPendingRequestsScreenState extends State<AdminPendingRequestsScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
@@ -81,8 +81,9 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
   }
 
   Widget _buildRequestList() {
-    if (currentSchoolId == null)
+    if (currentSchoolId == null) {
       return const Center(child: Text("خطأ في تحميل بيانات المدرسة"));
+    }
 
     int schoolIdInt = int.parse(currentSchoolId!);
 
@@ -93,8 +94,9 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
           .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final requests = snapshot.data!.docs;
 
         if (requests.isEmpty) {
@@ -126,6 +128,8 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
 
   // --- Logic Handlers ---
 
+  // --- Logic Handlers ---
+
   Future<void> _handleAccept(
     String requestId,
     Map<String, dynamic> data,
@@ -140,6 +144,31 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
     }
 
     try {
+      // 🛑 NEW CONSTRAINT: Check for active trips BEFORE accepting a student
+      final activeBusesQuery = await FirebaseFirestore.instance
+          .collection('Buses')
+          .where('SchoolID', isEqualTo: data['schoolId'])
+          .get();
+
+      bool hasActiveTrip = activeBusesQuery.docs.any((doc) {
+        final busData = doc.data();
+        return busData['morningTripStatus'] == 'جارية' ||
+               busData['afternoonTripStatus'] == 'جارية';
+      });
+
+      if (hasActiveTrip) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("لا يمكن قبول الطالب الآن: يوجد حافلة في رحلة جارية. يرجى الانتظار لحماية مسار السائق."),
+              backgroundColor: Color(0xFFD64545), // Danger red color
+            ),
+          );
+        }
+        return; // Abort completely so the Python AI script is never triggered!
+      }
+      // 🛑 END OF NEW CONSTRAINT
+
       // SUCCESSFUL SYNC LOGIC:
       // We use 'requestId' (The National ID) as the Document ID for the Students collection.
       // This ensures doc IDs match across both collections.
@@ -193,7 +222,8 @@ class _RegistrationRequestsState extends State<RegistrationRequests> {
         .update({'status': 'refused'});
     // ignore: use_build_context_synchronously
     ScaffoldMessenger.of(
-      context,
+        // ignore: use_build_context_synchronously
+        context,
     ).showSnackBar(const SnackBar(content: Text("تم رفض الطلب")));
   }
 

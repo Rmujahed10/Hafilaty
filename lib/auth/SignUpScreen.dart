@@ -18,21 +18,21 @@ String convertToAuthEmail(String phone) {
   return '$cleaned@hafilatyapp.com';
 }
 
-class RegistrationScreen extends StatefulWidget {
+class SignUpScreen extends StatefulWidget {
   final String role;
   final String successRoute;
 
-  const RegistrationScreen({
+  const SignUpScreen({
     super.key,
     required this.role,
     this.successRoute = "/login",
   });
 
   @override
-  State<RegistrationScreen> createState() => _RegistrationScreenState();
+  State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _RegistrationScreenState extends State<RegistrationScreen> {
+class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // --- Controllers ---

@@ -12,8 +12,8 @@ import 'dart:ui' as ui;
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'TripDetailsScreen.dart';
-import 'trip_pins_service.dart';
-import 'trip_navigation_service.dart';
+import '../services/trip_pins_service.dart';
+import '../services/trip_navigation_service.dart';
 
 class TripMapScreen extends StatefulWidget {
   final String busId;
@@ -249,8 +249,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
     if (!widget.isMorningTrip) return;
 
     for (var student in _students) {
-      if (student.isNearNotificationSent || student.parentPhone.isEmpty)
+      if (student.isNearNotificationSent || student.parentPhone.isEmpty) {
         continue;
+      }
 
       double distance = Geolocator.distanceBetween(
         currentLoc.latitude,
@@ -489,8 +490,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
   Future<void> _getRoutePolyline() async {
     if (_students.isEmpty ||
         _schoolModel == null ||
-        _currentBusLocation == null)
+        _currentBusLocation == null) {
       return;
+    }
 
     try {
       PointLatLng origin = PointLatLng(
@@ -595,10 +597,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
   // 🟢 2. الصقي دالة الطوارئ هنا 🟢
   // 🟢 دالة الطوارئ مع جلب رقم الإدارة من كولكشن users 🟢
   void _showEmergencyAlert() async {
-    String? _selectedReason;
-    String? _adminPhoneFromDb;
+    String? selectedReason;
+    String? adminPhoneFromDb;
 
-    final List<String> _reasons = [
+    final List<String> reasons = [
       "ازدحام مروري",
       "الطريق مغلق",
       "عطل في الحافلة",
@@ -621,14 +623,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
       if (adminQuery.docs.isNotEmpty) {
         // جلب الرقم من حقل phone كما هو موضح في صورتك
-        _adminPhoneFromDb = adminQuery.docs.first.data()['phone'];
+        adminPhoneFromDb = adminQuery.docs.first.data()['phone'];
       }
 
       // رقم افتراضي في حال لم يتم العثور على الأدمن في قاعدة البيانات
-      _adminPhoneFromDb ??= "911";
+      adminPhoneFromDb ??= "911";
     } catch (e) {
       debugPrint("خطأ في جلب رقم الإدارة: $e");
-      _adminPhoneFromDb = "911";
+      adminPhoneFromDb = "911";
     }
 
     if (!mounted) return;
@@ -638,7 +640,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setStateDialog) {
-          bool isOtherReason = _selectedReason == "حالة طوارئ أخرى";
+          bool isOtherReason = selectedReason == "حالة طوارئ أخرى";
 
           return AlertDialog(
             title: const Row(
@@ -662,7 +664,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
-                ..._reasons.map((reason) {
+                ...reasons.map((reason) {
                   return RadioListTile<String>(
                     title: Text(
                       reason,
@@ -670,12 +672,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       style: const TextStyle(fontSize: 14),
                     ),
                     value: reason,
-                    groupValue: _selectedReason,
+                    groupValue: selectedReason,
                     activeColor: const Color(0xFFF03A47),
                     onChanged: (value) =>
-                        setStateDialog(() => _selectedReason = value),
+                        setStateDialog(() => selectedReason = value),
                   );
-                }).toList(),
+                }),
 
                 // 📞 ظهور رقم الإدارة ديناميكياً من الفايربيس عند اختيار "حالة طوارئ أخرى"
                 if (isOtherReason)
@@ -699,7 +701,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          _adminPhoneFromDb!,
+                          adminPhoneFromDb!,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -720,7 +722,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 ),
               ),
               ElevatedButton(
-                onPressed: _selectedReason == null
+                onPressed: selectedReason == null
                     ? null
                     : () async {
                         Navigator.pop(ctx);
@@ -729,7 +731,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                           // 📞 حالة الاتصال المباشر 📞
                           final Uri launchUri = Uri(
                             scheme: 'tel',
-                            path: _adminPhoneFromDb,
+                            path: adminPhoneFromDb,
                           );
 
                           try {
@@ -772,7 +774,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                   'title':
                                       '🚨 تغيير مسار: حافلة رقم ${widget.busId}',
                                   'body':
-                                      'قام السائق بتغيير المسار بسبب: $_selectedReason',
+                                      'قام السائق بتغيير المسار بسبب: $selectedReason',
                                   'createdAt': FieldValue.serverTimestamp(),
                                   'isRead': false,
                                 });
@@ -805,7 +807,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                       'targetPhone': parentPhone,
                                       'title': 'تحديث مسار الرحلة ⚠️',
                                       'body':
-                                          'تم تغيير مسار الحافلة بسبب ($_selectedReason). أبناؤكم بخير داخل الحافلة ونعمل على وصولهم بأمان.',
+                                          'تم تغيير مسار الحافلة بسبب ($selectedReason). أبناؤكم بخير داخل الحافلة ونعمل على وصولهم بأمان.',
                                       'createdAt': FieldValue.serverTimestamp(),
                                     });
                               }
@@ -816,7 +818,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                 .collection('Buses')
                                 .doc(widget.busId)
                                 .set({
-                                  'routeChangeReason': _selectedReason,
+                                  'routeChangeReason': selectedReason,
                                   'lastActionTime':
                                       FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
@@ -825,6 +827,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                             await _getRoutePolyline();
 
                             if (mounted) {
+                              // ignore: use_build_context_synchronously
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(

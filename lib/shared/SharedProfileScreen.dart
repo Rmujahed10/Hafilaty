@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class RoleHomeScreen extends StatefulWidget {
-  const RoleHomeScreen({super.key});
+class SharedProfileScreen extends StatefulWidget {
+  const SharedProfileScreen({super.key});
 
   @override
-  State<RoleHomeScreen> createState() => _RoleHomeScreenState();
+  State<SharedProfileScreen> createState() => _SharedProfileScreenState();
 }
 
-class _RoleHomeScreenState extends State<RoleHomeScreen> {
+class _SharedProfileScreenState extends State<SharedProfileScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);

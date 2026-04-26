@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart'; // Ensure 'flutter pub add url_launcher' was run
 
-class StudentInfoScreen extends StatefulWidget {
+class AdminStudentProfileScreen extends StatefulWidget {
   final String studentDocId;
-  const StudentInfoScreen({super.key, required this.studentDocId});
+  const AdminStudentProfileScreen({super.key, required this.studentDocId});
 
   @override
-  State<StudentInfoScreen> createState() => _StudentInfoScreenState();
+  State<AdminStudentProfileScreen> createState() => _AdminStudentProfileScreenState();
 }
 
-class _StudentInfoScreenState extends State<StudentInfoScreen> {
+class _AdminStudentProfileScreenState extends State<AdminStudentProfileScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
   static const Color _kDanger = Color(0xFFD64545);
   static const Color _kSuccess = Color(0xFF6A994E);
@@ -79,6 +79,43 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
     setState(() => _isSaving = true);
     try {
       final db = FirebaseFirestore.instance;
+
+      // 🛑 NEW CONSTRAINT: Check for any active trips BEFORE saving edits
+      final studentDoc = await _ref.get();
+      final schoolId =
+          (studentDoc.data() as Map<String, dynamic>?)?['SchoolID'];
+
+      if (schoolId != null) {
+        final activeBusesQuery = await db
+            .collection('Buses')
+            .where('SchoolID', isEqualTo: schoolId)
+            .get();
+
+        bool hasActiveTrip = activeBusesQuery.docs.any((doc) {
+          final data = doc.data();
+          return data['morningTripStatus'] == 'جارية' ||
+              data['afternoonTripStatus'] == 'جارية';
+        });
+
+        if (hasActiveTrip) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  isArabic
+                      ? "لا يمكن التعديل الآن: يوجد حافلة في رحلة جارية. يرجى الانتظار لحماية مسار السائق."
+                      : "Cannot edit now: A bus is currently active. Please wait to protect the driver's route.",
+                ),
+                backgroundColor: _kDanger,
+              ),
+            );
+            setState(() => _isSaving = false);
+          }
+          return; // Abort completely!
+        }
+      }
+      // 🛑 END OF NEW CONSTRAINT
+
       final batch = db.batch();
 
       batch.update(_ref, {
@@ -143,6 +180,42 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
 
     if (confirm == true) {
       final db = FirebaseFirestore.instance;
+
+      // 🛑 NEW CONSTRAINT: Check for active trips BEFORE deleting
+      final studentDoc = await _ref.get();
+      final schoolId =
+          (studentDoc.data() as Map<String, dynamic>?)?['SchoolID'];
+
+      if (schoolId != null) {
+        final activeBusesQuery = await db
+            .collection('Buses')
+            .where('SchoolID', isEqualTo: schoolId)
+            .get();
+
+        bool hasActiveTrip = activeBusesQuery.docs.any((doc) {
+          final data = doc.data();
+          return data['morningTripStatus'] == 'جارية' ||
+              data['afternoonTripStatus'] == 'جارية';
+        });
+
+        if (hasActiveTrip) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  isArabic
+                      ? "لا يمكن الحذف الآن: يوجد حافلة في رحلة جارية. يرجى الانتظار لحماية مسار السائق."
+                      : "Cannot delete now: A bus is currently active. Please wait to protect the driver's route.",
+                ),
+                backgroundColor: _kDanger,
+              ),
+            );
+          }
+          return; // Abort completely!
+        }
+      }
+      // 🛑 END OF NEW CONSTRAINT
+
       final batch = db.batch();
       batch.delete(_ref);
       batch.delete(db.collection('StudentRequests').doc(widget.studentDocId));
