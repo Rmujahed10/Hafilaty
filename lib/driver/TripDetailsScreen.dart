@@ -6,8 +6,10 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 class TripDetailsScreen extends StatelessWidget {
   final String busId; 
+  final bool isReturnTrip; // ✅ إضافة متغير لتحديد نوع الرحلة
 
-  const TripDetailsScreen({super.key, required this.busId});
+  // جعلنا القيمة الافتراضية false (رحلة ذهاب) عشان ما يأثر على استدعاءاتك السابقة
+  const TripDetailsScreen({super.key, required this.busId, this.isReturnTrip = false});
 
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
@@ -16,6 +18,10 @@ class TripDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // ✅ استخراج تاريخ اليوم بصيغة مطابقة لما في الداتا بيس
     String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // ✅ تحديد نصوص الحالات ديناميكياً بناءً على نوع الرحلة
+    String label1 = isReturnTrip ? "في الحافلة" : "في الانتظار";
+    String label2 = isReturnTrip ? "تم الوصول" : "في الحافلة";
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -90,24 +96,38 @@ class TripDetailsScreen extends StatelessWidget {
             }
 
             // ✅ إضافة العدادات الديناميكية هنا
-            int waitingCount = 0;
-            int boardedCount = 0;
+            int count1 = 0; // يمثل: في الانتظار (ذهاب) أو في الحافلة (عودة)
+            int count2 = 0; // يمثل: في الحافلة (ذهاب) أو تم الوصول (عودة)
 
             for (var doc in students) {
               final data = doc.data() as Map<String, dynamic>;
-              // نفترض أن الحالة محفوظة في حقل اسمه busStatus
-              String status = data['busStatus'] ?? 'في الانتظار'; 
+              // الحالة الافتراضية تعتمد على نوع الرحلة إذا لم تكن موجودة
+              String defaultStatus = isReturnTrip ? 'في الحافلة' : 'في الانتظار';
+              String status = data['busStatus'] ?? defaultStatus; 
               
-              if (status == 'في الحافلة') {
-                boardedCount++;
+              if (isReturnTrip) {
+                if (status == 'تم الوصول') {
+                  count2++;
+                } else {
+                  count1++;
+                }
               } else {
-                waitingCount++;
+                if (status == 'في الحافلة') {
+                  count2++;
+                } else {
+                  count1++;
+                }
               }
             }
 
             return Column(
               children: [
-              _buildStatsHeader(waitingCount: waitingCount, boardedCount: boardedCount),
+                _buildStatsHeader(
+                  count1: count1, 
+                  count2: count2, 
+                  label1: label1, 
+                  label2: label2
+                ),
 
                 Expanded(
                   child: ListView.builder(
@@ -121,12 +141,16 @@ class TripDetailsScreen extends StatelessWidget {
                       
                       // ✅ جلب اسم الطالب بناءً على الحقول الصحيحة في قاعدة البيانات
                       String studentName = studentData['StudentName_ar'] ?? studentData['StudentName'] ?? "طالب غير معروف";
-                      String status = studentData['busStatus'] ?? 'في الانتظار';
+                      String defaultStatus = isReturnTrip ? 'في الحافلة' : 'في الانتظار';
+                      String status = studentData['busStatus'] ?? defaultStatus;
+
+                      // ✅ نحدد إذا الطالب أكمل المرحلة (ركب في الذهاب، أو وصل في العودة)
+                      bool isCompleted = isReturnTrip ? (status == 'تم الوصول') : (status == 'في الحافلة');
 
                       return _StudentTile(
                         index: index + 1,
                         studentName: studentName, 
-                        isBoarded: status == 'في الحافلة', // ✅ نمرر حالة ركوب الطالب ليتغير اللون
+                        isCompleted: isCompleted, // نمرر الحالة الديناميكية
                       );
                     },
                   ),
@@ -139,24 +163,30 @@ class TripDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsHeader({required int waitingCount, required int boardedCount}) {
+  // ✅ تعديل دالة الإحصائيات لتقبل نصوص وعدادات ديناميكية
+  Widget _buildStatsHeader({
+    required int count1, 
+    required int count2, 
+    required String label1, 
+    required String label2
+  }) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 15),
       child: Row(
         children: [
           _StatItem(
-            count: waitingCount.toString(), 
-            label: "في الانتظار",
+            count: count1.toString(), 
+            label: label1,
             color: Colors.blue,
-            isActive: waitingCount > 0, // الخط الأزرق يظهر إذا كان في طلاب ينتظرون
+            isActive: count1 > 0, 
           ),
           Container(width: 1, height: 40, color: Colors.grey.shade300),
           _StatItem(
-            count: boardedCount.toString(), 
-            label: "في الحافلة",
+            count: count2.toString(), 
+            label: label2,
             color: Colors.green,
-            isActive: boardedCount > 0, // الخط الأخضر يظهر إذا ركب أحد
+            isActive: count2 > 0, 
           ),
         ],
       ),
@@ -216,9 +246,9 @@ class _StatItem extends StatelessWidget {
 class _StudentTile extends StatelessWidget {
   final int index;
   final String studentName; 
-  final bool isBoarded; // ✅ متغير جديد لتحديد حالة الطالب
+  final bool isCompleted; // ✅ تم تغيير الاسم ليكون أشمل من isBoarded
 
-  const _StudentTile({required this.index, required this.studentName, required this.isBoarded});
+  const _StudentTile({required this.index, required this.studentName, required this.isCompleted});
 
   @override
   Widget build(BuildContext context) {
@@ -239,13 +269,13 @@ class _StudentTile extends StatelessWidget {
           width: 30,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isBoarded ? Colors.green.shade50 : Colors.blue.shade50, // خلفية الرقم تتغير
+            color: isCompleted ? Colors.green.shade50 : Colors.blue.shade50, 
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
             "$index",
             style:  TextStyle(
-              color: isBoarded ? Colors.green : Colors.blue,
+              color: isCompleted ? Colors.green : Colors.blue,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -256,7 +286,7 @@ class _StudentTile extends StatelessWidget {
         ),
         trailing: CircleAvatar(
           radius: 15,
-          backgroundColor: isBoarded ? Colors.green : Colors.grey.shade400,
+          backgroundColor: isCompleted ? Colors.green : Colors.grey.shade400,
           child: Text(
             firstLetter, 
             style: const TextStyle(color: Colors.white, fontSize: 12),

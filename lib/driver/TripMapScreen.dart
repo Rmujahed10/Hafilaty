@@ -953,7 +953,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     );
   }
 
-  Widget _buildTripControlPanel() {
+ Widget _buildTripControlPanel() {
     bool isFinishedLocally = _tripNavigationService.currentBatchIndex == 999;
     bool isCompleted = _tripStatus == 'مكتملة' || isFinishedLocally;
 
@@ -1003,8 +1003,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                // ✅ قمنا بإزالة const وأضفنا تمرير الـ busId لصفحة التفاصيل
-                builder: (context) => TripDetailsScreen(busId: widget.busId),
+                // 💡 الإضافة هنا: نمرر isReturnTrip كعكس لقيمة isMorningTrip
+                builder: (context) => TripDetailsScreen(
+                  busId: widget.busId,
+                  isReturnTrip: !widget.isMorningTrip, // ✅ تم الربط بنجاح!
+                ),
               ),
             ),
           ),
