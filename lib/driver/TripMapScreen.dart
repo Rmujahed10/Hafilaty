@@ -1,4 +1,3 @@
-// ignore_for_file: file_names, deprecated_member_use
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'TripDetailsScreen.dart';
 import '../services/trip_pins_service.dart';
 import '../services/trip_navigation_service.dart';
+// ✅ 1. Import the OBD Scanner Service
+import 'obd_scanner_service.dart';
 
 class TripMapScreen extends StatefulWidget {
   final String busId;
@@ -36,11 +37,15 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
   bool _isShowingArrivalDialog = false;
   DateTime? _lastSpeedingEventTime;
-  String _tripStatus = 'لم تبدأ'; // ✅ Tracks real status from Firestore
+  String _tripStatus = 'لم تبدأ';
 
   final Completer<GoogleMapController> _mapController = Completer();
   final TripPinsService _tripPinsService = TripPinsService();
   final TripNavigationService _tripNavigationService = TripNavigationService();
+
+  // ✅ 2. OBD Scanner State Variables
+  ObdScannerService? _obdScannerService;
+  bool _isObdConnected = false;
 
   Set<Marker> _markers = {};
   List<StudentPinModel> _students = [];
@@ -63,12 +68,34 @@ class _TripMapScreenState extends State<TripMapScreen> {
     super.initState();
     _loadTripData();
     _startLiveTracking();
+    _startObdScanner(); // ✅ 3. Start OBD connection process
   }
 
   @override
   void dispose() {
     _positionStreamSubscription?.cancel();
+    _obdScannerService?.stopPolling(); // ✅ 4. Stop OBD polling to save battery
     super.dispose();
+  }
+
+  // ✅ 5. OBD Startup Function
+  Future<void> _startObdScanner() async {
+    _obdScannerService = ObdScannerService(busId: widget.busId);
+
+    // Attempt to connect to the Bluetooth device
+    bool connected = await _obdScannerService!.autoConnect();
+
+    // Update the UI indicator
+    if (mounted) {
+      setState(() {
+        _isObdConnected = connected;
+      });
+    }
+
+    // Start pushing data if connected
+    if (connected) {
+      _obdScannerService!.startPolling();
+    }
   }
 
   Future<void> _loadTripData() async {
@@ -86,7 +113,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
         _currentBusLocation = _initialPosition;
       }
 
-      // ✅ Fetch the current trip status from Firestore
       final busDoc = await FirebaseFirestore.instance
           .collection('Buses')
           .doc(widget.busId)
@@ -119,10 +145,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
         final status = studentDoc.data()?['busStatus'] ?? '';
 
-        // ✅ سحب رقم الجوال لولي الأمر لاستخدامه في الإشعارات
         student.parentPhone = studentDoc.data()?['parentPhone'] ?? '';
 
-        // ✅ Determine if the stop is complete based on trip type
         bool isStopCompleted = widget.isMorningTrip
             ? status == 'في الحافلة'
             : status == 'في المنزل';
@@ -211,7 +235,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
         ).listen((Position position) {
           LatLng newLocation = LatLng(position.latitude, position.longitude);
 
-          // 1. Update Map for Driver
           if (mounted) {
             setState(() {
               _currentBusLocation = newLocation;
@@ -228,23 +251,18 @@ class _TripMapScreenState extends State<TripMapScreen> {
             });
           }
 
-          // 2. Send coordinates to Firebase
           FirebaseFirestore.instance.collection('Buses').doc(widget.busId).set({
             'lat': position.latitude,
             'lng': position.longitude,
             'LastUpdated': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
-          // 3. Geofencing check
           _checkArrivalProximity(newLocation);
-          _checkWarningProximity(newLocation); // ✅ استدعاء فحص تنبيه الاقتراب
-
-          // 4. Speeding check
+          _checkWarningProximity(newLocation);
           _checkSpeeding(position);
         });
   }
 
-  // ✅ الدالة الجديدة لفحص الاقتراب وإرسال تنبيه "الحافلة تقترب"
   void _checkWarningProximity(LatLng currentLoc) {
     if (!widget.isMorningTrip) return;
 
@@ -274,9 +292,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
   }
 
-  // ============================================================
-  // SPEED TRACKING LOGIC
-  // ============================================================
   void _checkSpeeding(Position position) {
     double speedKmh = position.speed * 3.6;
     double speedLimit = 80.0;
@@ -307,9 +322,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
   }
 
-  // ============================================================
-  // GEOFENCING & SCANNER LOGIC
-  // ============================================================
   void _checkArrivalProximity(LatLng currentLoc) {
     if (_isShowingArrivalDialog) return;
 
@@ -392,19 +404,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   Future<void> _handleSuccessfulScan(StudentPinModel student) async {
-    // ✅ Set the correct status based on the trip direction
     String newStatus = widget.isMorningTrip ? 'في الحافلة' : 'في المنزل';
 
-    // 2. ✅✅ الإضافة الجديدة: تحديث كولكشن الحضور (Attendance) لكي تنعكس الأرقام في شاشة التفاصيل ✅✅
-    // ملاحظة: تأكدي من إضافة import 'package:intl/intl.dart'; أعلى هذا الملف إذا لم تكن موجودة
     String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     await FirebaseFirestore.instance
         .collection('Attendance')
         .doc(todayDate)
         .collection('PresentStudents')
-        .doc(
-          student.studentId,
-        ) // تأكدنا من صورة الداتا بيس أن رقم الدوكيومنت هو نفس رقم الطالب
+        .doc(student.studentId)
         .set({'busStatus': newStatus}, SetOptions(merge: true));
 
     if (mounted) {
@@ -461,7 +468,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
       await _updateBusStatus("جارية الآن");
 
-      // ✅ إشعار جماعي ببدء العودة للمنزل
       if (!widget.isMorningTrip &&
           _tripNavigationService.currentBatchIndex == 0) {
         FirebaseFirestore.instance.collection('LiveNotifications').add({
@@ -572,7 +578,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
             'LastUpdated': FieldValue.serverTimestamp(),
           });
 
-      // ✅ إشعار جماعي بالوصول للمدرسة
       if (widget.isMorningTrip && status == "مكتملة") {
         FirebaseFirestore.instance.collection('LiveNotifications').add({
           'type': 'broadcast',
@@ -583,7 +588,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
         });
       }
 
-      // ✅ Update the local state so the UI button reacts instantly
       if (mounted) {
         setState(() {
           _tripStatus = status;
@@ -594,8 +598,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
   }
 
-  // 🟢 2. الصقي دالة الطوارئ هنا 🟢
-  // 🟢 دالة الطوارئ مع جلب رقم الإدارة من كولكشن users 🟢
   void _showEmergencyAlert() async {
     String? selectedReason;
     String? adminPhoneFromDb;
@@ -608,10 +610,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
       "حالة طوارئ أخرى",
     ];
 
-    // 1. جلب رقم الإدارة (الأدمن) من قاعدة البيانات
     try {
-      // نفترض أن _schoolModel يحتوي على معرف المدرسة (مثلاً _schoolModel!.id أو الحقل المناسب لديك)
-      // إذا لم يكن متوفراً يمكنك استبدال _schoolModel!.id بالقيمة "32438" مؤقتاً للتجربة
       String currentSchoolId = _schoolModel?.schoolId ?? "32438";
 
       var adminQuery = await FirebaseFirestore.instance
@@ -622,11 +621,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
           .get();
 
       if (adminQuery.docs.isNotEmpty) {
-        // جلب الرقم من حقل phone كما هو موضح في صورتك
         adminPhoneFromDb = adminQuery.docs.first.data()['phone'];
       }
-
-      // رقم افتراضي في حال لم يتم العثور على الأدمن في قاعدة البيانات
       adminPhoneFromDb ??= "911";
     } catch (e) {
       debugPrint("خطأ في جلب رقم الإدارة: $e");
@@ -679,7 +675,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   );
                 }),
 
-                // 📞 ظهور رقم الإدارة ديناميكياً من الفايربيس عند اختيار "حالة طوارئ أخرى"
                 if (isOtherReason)
                   Container(
                     width: double.infinity,
@@ -728,7 +723,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         Navigator.pop(ctx);
 
                         if (isOtherReason) {
-                          // 📞 حالة الاتصال المباشر 📞
                           final Uri launchUri = Uri(
                             scheme: 'tel',
                             path: adminPhoneFromDb,
@@ -755,7 +749,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                             debugPrint("خطأ في محاولة الاتصال: $e");
                           }
                         } else {
-                          // 🔔 حالة الإشعارات وإعادة حساب المسار 🔔
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
@@ -765,7 +758,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                           );
 
                           try {
-                            // 1. إشعار الإدارة
                             await FirebaseFirestore.instance
                                 .collection('LiveNotifications')
                                 .add({
@@ -779,7 +771,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                   'isRead': false,
                                 });
 
-                            // 2. إشعار أولياء الأمور
                             String todayDate = DateFormat(
                               'yyyy-MM-dd',
                             ).format(DateTime.now());
@@ -813,7 +804,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                               }
                             }
 
-                            // 3. تحديث حالة الحافلة
                             await FirebaseFirestore.instance
                                 .collection('Buses')
                                 .doc(widget.busId)
@@ -823,7 +813,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                       FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
 
-                            // 4. إعادة حساب المسار
                             await _getRoutePolyline();
 
                             if (mounted) {
@@ -869,7 +858,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
       ),
     );
   }
-  // 🟢 نهاية دالة الطوارئ 🟢
 
   @override
   Widget build(BuildContext context) {
@@ -901,7 +889,53 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       onMapCreated: (controller) =>
                           _mapController.complete(controller),
                     ),
-                    // 🟢 1. الصقي كود الأيقونة هنا بالضبط 🟢
+
+                    // ✅ 6. New UI Indicator for OBD Connection Status
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _isObdConnected
+                              ? const Color(0xFF2E7D32)
+                              : const Color(0xFFC62828),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isObdConnected
+                                  ? Icons.bluetooth_connected
+                                  : Icons.bluetooth_disabled,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _isObdConnected ? "OBD متصل" : "OBD غير متصل",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                     Positioned(
                       bottom: 320,
                       right: 16,
@@ -937,7 +971,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         ),
                       ),
                     ),
-                    // 🟢 نهاية كود الأيقونة 🟢
                     Align(
                       alignment: Alignment.bottomCenter,
                       child: _buildTripControlPanel(),
@@ -953,11 +986,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
     );
   }
 
- Widget _buildTripControlPanel() {
+  Widget _buildTripControlPanel() {
     bool isFinishedLocally = _tripNavigationService.currentBatchIndex == 999;
     bool isCompleted = _tripStatus == 'مكتملة' || isFinishedLocally;
 
-    // ✅ Determine button text based on the database's source of truth
     String buttonText;
     if (isCompleted) {
       buttonText = "اكتملت الرحلة";
@@ -1003,10 +1035,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                // 💡 الإضافة هنا: نمرر isReturnTrip كعكس لقيمة isMorningTrip
                 builder: (context) => TripDetailsScreen(
                   busId: widget.busId,
-                  isReturnTrip: !widget.isMorningTrip, // ✅ تم الربط بنجاح!
+                  isReturnTrip: !widget.isMorningTrip,
                 ),
               ),
             ),
@@ -1072,13 +1103,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
-        currentIndex: 0, // Home icon remains highlighted
+        currentIndex: 0,
         onTap: (index) {
           if (index == 0) {
-            // Safely return to the Driver Home Screen
             Navigator.pop(context);
           } else if (index == 1) {
-            // Navigate to the Profile / Role selection
             Navigator.pushReplacementNamed(context, '/role_home');
           }
         },
@@ -1097,7 +1126,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 }
 
-// ✅ SCANNER UI CLASS
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
   @override

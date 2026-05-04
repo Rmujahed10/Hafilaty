@@ -17,6 +17,9 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
 
   int selectedTab = 0; // 0 = يومي, 1 = شهري
 
+  // 💡 Centralized target bus ID for the whole screen
+  final String targetBusID = "Bus_32438_101";
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -39,7 +42,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                       _MainCardContainer(
                         children: [
                           /// Map Preview Section
-                          _MapSection(),
+                          _MapSection(targetBusID: targetBusID),
 
                           const SizedBox(height: 24),
 
@@ -48,10 +51,9 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
 
                           const SizedBox(height: 24),
 
-                          /// Fleet Stats Grid
+                          /// ✅ Live Fleet Stats Grid (Now reading from OBD2 Firebase Data)
                           _buildStatsGrid(),
 
-                          // ✅ Added Divider for section distinction
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 24),
                             child: Divider(
@@ -62,8 +64,11 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                           ),
 
                           /// Driver Behavior Section
-                          _SectionHeader(title: "سلوك السائق"),
-                          _DriverBehaviorCard(selectedTab: selectedTab),
+                          const _SectionHeader(title: "سلوك السائق"),
+                          _DriverBehaviorCard(
+                            selectedTab: selectedTab,
+                            targetBusID: targetBusID,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -71,7 +76,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                   ),
                 ),
               ),
-              _buildBottomNav(context), // ✅ Standardized Labeled Toolbar
+              _buildBottomNav(context),
             ],
           ),
         ),
@@ -79,53 +84,79 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
     );
   }
 
+  // ✅ UPDATED: Now listens to live OBD2 data from Firebase
   Widget _buildStatsGrid() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _infoCard(
-                color: Colors.green[50]!,
-                icon: Icons.local_gas_station,
-                title: "خزان الوقود",
-                value: "45%",
-              ),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('Buses')
+          .doc(targetBusID)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _infoCard(
-                color: Colors.blue[50]!,
-                icon: Icons.speed,
-                title: "المسافة المقطوعة",
-                value: "342 كم",
-              ),
+          );
+        }
+
+        var data = snapshot.data!.data() as Map<String, dynamic>;
+
+        // Using fallback values ('--') if the driver hasn't started the OBD scan yet
+        String fuelLevel = data['fuelLevel']?.toString() ?? "--";
+        String mileage = data['mileage']?.toString() ?? "--";
+        String battery = data['batteryLevel']?.toString() ?? "--";
+        String engineOil = data['engineOil']?.toString() ?? "غير متاح";
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _infoCard(
+                    color: Colors.green[50]!,
+                    icon: Icons.local_gas_station,
+                    title: "خزان الوقود",
+                    value: "$fuelLevel%",
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _infoCard(
+                    color: Colors.blue[50]!,
+                    icon: Icons.speed,
+                    title: "المسافة المقطوعة",
+                    value: "$mileage كم",
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _infoCard(
+                    color: Colors.grey[100]!,
+                    icon: Icons.battery_charging_full,
+                    title: "نسبة البطارية",
+                    value: "$battery%",
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _infoCard(
+                    color: Colors.red[50]!,
+                    icon: Icons.oil_barrel,
+                    title: "زيت المحرك",
+                    value: engineOil,
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _infoCard(
-                color: Colors.grey[100]!,
-                icon: Icons.battery_charging_full,
-                title: "نسبة البطارية",
-                value: "70%",
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _infoCard(
-                color: Colors.red[50]!,
-                icon: Icons.oil_barrel,
-                title: "زيت المحرك",
-                value: "متبقي 1756 كم",
-              ),
-            ),
-          ],
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -210,7 +241,6 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
     );
   }
 
-  // ✅ New Standardized Bottom Navigation with Titles
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       height: 85,
@@ -260,6 +290,9 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
 /* -------------------- Sub-Components -------------------- */
 
 class _MapSection extends StatefulWidget {
+  final String targetBusID;
+  const _MapSection({required this.targetBusID});
+
   @override
   State<_MapSection> createState() => _MapSectionState();
 }
@@ -267,26 +300,20 @@ class _MapSection extends StatefulWidget {
 class _MapSectionState extends State<_MapSection> {
   GoogleMapController? _mapController;
 
-  // 💡 Note: Currently hardcoded to one bus for parity with ManageChildScreen.
-  // In a full Fleet Management view, you might want to pass this in dynamically
-  // or query ALL active buses to show multiple markers!
-  final String targetBusID = "Bus_32438_101";
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 180, // Slightly taller for better visibility
+      height: 180,
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color: const Color(0xFFEDEFF2),
       ),
-      clipBehavior:
-          Clip.antiAlias, // Important: Keeps the map inside the rounded borders
+      clipBehavior: Clip.antiAlias,
       child: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('Buses')
-            .doc(targetBusID)
+            .doc(widget.targetBusID)
             .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -295,12 +322,10 @@ class _MapSectionState extends State<_MapSection> {
 
           var data = snapshot.data!.data() as Map<String, dynamic>;
 
-          // Fallback coordinates in case they are missing (Jeddah, SA)
           double lat = data['lat'] ?? 21.4858;
           double lng = data['lng'] ?? 39.1925;
           LatLng busLocation = LatLng(lat, lng);
 
-          // Animate the camera whenever the Firestore location updates
           _mapController?.animateCamera(CameraUpdate.newLatLng(busLocation));
 
           return GoogleMap(
@@ -309,8 +334,7 @@ class _MapSectionState extends State<_MapSection> {
               zoom: 15.0,
             ),
             myLocationButtonEnabled: false,
-            zoomControlsEnabled:
-                false, // Keeps the UI clean inside the small card
+            zoomControlsEnabled: false,
             onMapCreated: (controller) => _mapController = controller,
             markers: {
               Marker(
@@ -330,26 +354,24 @@ class _MapSectionState extends State<_MapSection> {
 
 class _DriverBehaviorCard extends StatelessWidget {
   final int selectedTab; // 0 = يومي, 1 = شهري
-  final String targetBusID =
-      "Bus_32438_101"; // Make sure this matches your map!
+  final String targetBusID;
 
-  const _DriverBehaviorCard({required this.selectedTab});
+  const _DriverBehaviorCard({
+    required this.selectedTab,
+    required this.targetBusID,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // 1. Calculate the starting date based on the selected tab
     DateTime now = DateTime.now();
     DateTime startDate;
     if (selectedTab == 0) {
-      // Daily: Start of today
       startDate = DateTime(now.year, now.month, now.day);
     } else {
-      // Monthly: Start of this month
       startDate = DateTime(now.year, now.month, 1);
     }
 
     return StreamBuilder<QuerySnapshot>(
-      // 2. Query Firestore for Speeding events from the chosen date onwards
       stream: FirebaseFirestore.instance
           .collection('Buses')
           .doc(targetBusID)
@@ -361,25 +383,17 @@ class _DriverBehaviorCard extends StatelessWidget {
           )
           .snapshots(),
       builder: (context, snapshot) {
-        // 3. Set default static values for metrics we aren't tracking yet
-        double brakingScore = 1.0; // 100%
-        double corneringScore = 1.0; // 100%
-
-        // 4. Calculate dynamic Speeding Score
-        double speedingScore = 1.0; // Start at 100%
+        double brakingScore = 1.0;
+        double corneringScore = 1.0;
+        double speedingScore = 1.0;
         int speedingEventsCount = 0;
 
         if (snapshot.hasData) {
           speedingEventsCount = snapshot.data!.docs.length;
-
-          // Deduct 5% for every speeding event logged (adjust this penalty as you see fit)
           speedingScore = 1.0 - (speedingEventsCount * 0.05);
-
-          // Prevent the score from dropping below 0%
           if (speedingScore < 0) speedingScore = 0.0;
         }
 
-        // 5. Calculate Overall Score (Average of the three)
         double overallScore =
             (speedingScore + brakingScore + corneringScore) / 3;
 
@@ -395,7 +409,7 @@ class _DriverBehaviorCard extends StatelessWidget {
               _ProgressCircle(
                 label: "التقييم العام",
                 value: overallScore,
-                color: _getColorForScore(overallScore), // Dynamic color!
+                color: _getColorForScore(overallScore),
                 size: 120,
                 stroke: 10,
               ),
@@ -427,7 +441,6 @@ class _DriverBehaviorCard extends StatelessWidget {
                 ],
               ),
 
-              // ✅ Bonus: Show a warning text if there are violations!
               if (speedingEventsCount > 0) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -456,7 +469,6 @@ class _DriverBehaviorCard extends StatelessWidget {
     );
   }
 
-  // Helper function to change ring colors from Green -> Orange -> Red based on the grade
   Color _getColorForScore(double score) {
     if (score >= 0.8) return Colors.green;
     if (score >= 0.5) return Colors.orange;
