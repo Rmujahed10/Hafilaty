@@ -1,14 +1,12 @@
 // ignore_for_file: file_names
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' hide TextDirection; 
 
 class TripDetailsScreen extends StatelessWidget {
   final String busId; 
-  final bool isReturnTrip; // ✅ إضافة متغير لتحديد نوع الرحلة
+  final bool isReturnTrip;
 
-  // جعلنا القيمة الافتراضية false (رحلة ذهاب) عشان ما يأثر على استدعاءاتك السابقة
   const TripDetailsScreen({super.key, required this.busId, this.isReturnTrip = false});
 
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
@@ -16,12 +14,14 @@ class TripDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ استخراج تاريخ اليوم بصيغة مطابقة لما في الداتا بيس
-    String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    // ✅ تحديد نصوص الحالات ديناميكياً بناءً على نوع الرحلة
+    // ✅ FIX: Added 'en_US' so it doesn't break on Arabic physical devices!
+    String todayDate = DateFormat('yyyy-MM-dd', 'en_US').format(DateTime.now());
+    
     String label1 = isReturnTrip ? "في الحافلة" : "في الانتظار";
     String label2 = isReturnTrip ? "تم الوصول" : "في الحافلة";
+    
+    // استخراج رقم الباص الخاص بالطلاب (مثال: Bus_32438_101 -> 101)
+    final String busIdSuffix = busId.split('_').last;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -37,125 +37,130 @@ class TripDetailsScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
           leading: IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new,
-              size: 20,
-              color: Colors.white,
-            ),
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.language, color: Colors.white, size: 22),
-              onPressed: () {
-                if (kDebugMode) {
-                  print("تغيير اللغة");
-                }
-              },
-            ),
-          ],
         ),
         
-        // ✅ توجيه الـ StreamBuilder إلى كولكشن Attendance واستخدام الفلترة المحلية
-        body: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('Attendance')
-              .doc(todayDate)
-              .collection('PresentStudents')
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        // ✅ 1. جلب بيانات الطلاب الخاصة بهذا الباص من كولكشن Students (لمعرفة أسمائهم)
+        body: FutureBuilder<QuerySnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('Students')
+              .where('BusID', isEqualTo: busIdSuffix)
+              .get(),
+          builder: (context, studentsSnapshot) {
+            if (studentsSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            if (!studentsSnapshot.hasData || studentsSnapshot.data!.docs.isEmpty) {
               return const Center(
-                  child: Text(
-                "لا يوجد بيانات حضور لهذا اليوم",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ));
+                  child: Text("لا يوجد طلاب مسجلين في هذه الحافلة",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
             }
 
-            // ✅ الفلترة المحلية: التأكد من أن رقم باص السائق يحتوي على رقم باص الطالب
-            final students = snapshot.data!.docs.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final studentBusId = data['BusID']?.toString() ?? '';
-              
-              return studentBusId.isNotEmpty && busId.contains(studentBusId);
-            }).toList();
-
-            final int totalStudents = students.length; 
-
-            // في حال لم يتبقَ طلاب بعد الفلترة
-            if (students.isEmpty) {
-               return const Center(
-                  child: Text(
-                "لا يوجد طلاب حاضرين في هذه الرحلة",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ));
+            // تخزين بيانات الطلاب (الاسم، ورقم الباص) في Map لسهولة البحث عنهم لاحقاً باستخدام رقمهم (ID)
+            Map<String, Map<String, dynamic>> busStudentsMap = {};
+            for (var doc in studentsSnapshot.data!.docs) {
+              busStudentsMap[doc.id] = doc.data() as Map<String, dynamic>;
             }
 
-            // ✅ إضافة العدادات الديناميكية هنا
-            int count1 = 0; // يمثل: في الانتظار (ذهاب) أو في الحافلة (عودة)
-            int count2 = 0; // يمثل: في الحافلة (ذهاب) أو تم الوصول (عودة)
-
-            for (var doc in students) {
-              final data = doc.data() as Map<String, dynamic>;
-              // الحالة الافتراضية تعتمد على نوع الرحلة إذا لم تكن موجودة
-              String defaultStatus = isReturnTrip ? 'في الحافلة' : 'في الانتظار';
-              String status = data['busStatus'] ?? defaultStatus; 
-              
-              if (isReturnTrip) {
-                if (status == 'تم الوصول') {
-                  count2++;
-                } else {
-                  count1++;
+            // ✅ 2. الاستماع المباشر لحالة الحضور من كولكشن Attendance
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('Attendance')
+                  .doc(todayDate) // This will now correctly query "2026-05-06"
+                  .collection('PresentStudents')
+                  .snapshots(),
+              builder: (context, attendanceSnapshot) {
+                if (attendanceSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
                 }
-              } else {
-                if (status == 'في الحافلة') {
-                  count2++;
-                } else {
-                  count1++;
+
+                if (!attendanceSnapshot.hasData || attendanceSnapshot.data!.docs.isEmpty) {
+                  return const Center(
+                      child: Text("لا يوجد بيانات حضور لهذا اليوم",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
                 }
-              }
-            }
 
-            return Column(
-              children: [
-                _buildStatsHeader(
-                  count1: count1, 
-                  count2: count2, 
-                  label1: label1, 
-                  label2: label2
-                ),
+                // ✅ 3. دمج البيانات: استخراج الطلاب الحاضرين الذين ينتمون لهذا الباص فقط
+                List<Map<String, dynamic>> presentBusStudents = [];
+                int count1 = 0;
+                int count2 = 0;
 
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                for (var attendanceDoc in attendanceSnapshot.data!.docs) {
+                  String studentId = attendanceDoc.id;
+                  
+                  // هل هذا الطالب الحاضر ينتمي لحافلتنا الحالية؟
+                  if (busStudentsMap.containsKey(studentId)) {
+                    var studentData = busStudentsMap[studentId]!;
+                    var attendanceData = attendanceDoc.data() as Map<String, dynamic>;
+                    
+                    // تحديد الحالة (busStatus)
+                    String defaultStatus = isReturnTrip ? 'في الحافلة' : 'في الانتظار';
+                    String status = attendanceData['busStatus'] ?? defaultStatus;
+                    
+                    presentBusStudents.add({
+                      'id': studentId,
+                      'name': studentData['StudentName_ar'] ?? studentData['StudentName'] ?? "طالب غير معروف",
+                      'status': status,
+                    });
+
+                    // حساب الإحصائيات والأرقام
+                    if (isReturnTrip) {
+                      if (status == 'تم الوصول') {
+                        count2++;
+                      } else {
+                        count1++;
+                      }
+                    } else {
+                      if (status == 'في الحافلة') {
+                        count2++;
+                      } else {
+                        count1++;
+                      }
+                    }
+                  }
+                }
+
+                if (presentBusStudents.isEmpty) {
+                   return const Center(
+                      child: Text("لا يوجد طلاب حاضرين في هذه الرحلة",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
+                }
+
+                // ✅ 4. عرض القائمة النهائية والعدادات
+                return Column(
+                  children: [
+                    _buildStatsHeader(
+                      count1: count1, 
+                      count2: count2, 
+                      label1: label1, 
+                      label2: label2
                     ),
-                    itemCount: totalStudents, 
-                    itemBuilder: (context, index) {
-                      var studentData = students[index].data() as Map<String, dynamic>;
-                      
-                      // ✅ جلب اسم الطالب بناءً على الحقول الصحيحة في قاعدة البيانات
-                      String studentName = studentData['StudentName_ar'] ?? studentData['StudentName'] ?? "طالب غير معروف";
-                      String defaultStatus = isReturnTrip ? 'في الحافلة' : 'في الانتظار';
-                      String status = studentData['busStatus'] ?? defaultStatus;
 
-                      // ✅ نحدد إذا الطالب أكمل المرحلة (ركب في الذهاب، أو وصل في العودة)
-                      bool isCompleted = isReturnTrip ? (status == 'تم الوصول') : (status == 'في الحافلة');
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        itemCount: presentBusStudents.length, 
+                        itemBuilder: (context, index) {
+                          var student = presentBusStudents[index];
+                          String status = student['status'];
 
-                      return _StudentTile(
-                        index: index + 1,
-                        studentName: studentName, 
-                        isCompleted: isCompleted, // نمرر الحالة الديناميكية
-                      );
-                    },
-                  ),
-                ),
-              ],
+                          // نحدد إذا الطالب أكمل المرحلة
+                          bool isCompleted = isReturnTrip ? (status == 'تم الوصول') : (status == 'في الحافلة');
+
+                          return _StudentTile(
+                            index: index + 1,
+                            studentName: student['name'], 
+                            isCompleted: isCompleted, 
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -163,7 +168,6 @@ class TripDetailsScreen extends StatelessWidget {
     );
   }
 
-  // ✅ تعديل دالة الإحصائيات لتقبل نصوص وعدادات ديناميكية
   Widget _buildStatsHeader({
     required int count1, 
     required int count2, 
@@ -217,10 +221,7 @@ class _StatItem extends StatelessWidget {
             children: [
               Text(
                 count,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 5),
               Icon(Icons.arrow_upward, size: 16, color: color),
@@ -246,13 +247,12 @@ class _StatItem extends StatelessWidget {
 class _StudentTile extends StatelessWidget {
   final int index;
   final String studentName; 
-  final bool isCompleted; // ✅ تم تغيير الاسم ليكون أشمل من isBoarded
+  final bool isCompleted; 
 
   const _StudentTile({required this.index, required this.studentName, required this.isCompleted});
 
   @override
   Widget build(BuildContext context) {
-    // ✅ استخراج الحرف الأول بأمان
     String firstLetter = studentName.trim().isNotEmpty ? studentName.trim()[0] : "؟";
 
     return Container(
@@ -261,7 +261,7 @@ class _StudentTile extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 4), 
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4), 
         ],
       ),
       child: ListTile(
