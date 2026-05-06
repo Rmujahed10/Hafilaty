@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class FleetManagementScreen extends StatefulWidget {
-  final String busId; // ✅ Required dynamic Bus ID
+  final String busId; 
 
   const FleetManagementScreen({super.key, required this.busId});
 
@@ -16,8 +16,6 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
   // --- Styling Constants ---
   static const Color _kHeaderBlue = Color(0xFF0D1B36);
   static const Color _kBg = Color(0xFFF2F3F5);
-
-  int selectedTab = 0; // 0 = يومي, 1 = شهري
 
   @override
   Widget build(BuildContext context) {
@@ -41,33 +39,12 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                       _MainCardContainer(
                         children: [
                           /// Map Preview Section
-                          _MapSection(targetBusID: widget.busId), // ✅ Passed dynamic ID
+                          _MapSection(targetBusID: widget.busId), 
 
                           const SizedBox(height: 24),
 
-                          /// Day/Month Toggle
-                          _segmentedTabs(),
-
-                          const SizedBox(height: 24),
-
-                          /// ✅ Live Fleet Stats Grid (Now reading from OBD2 Firebase Data)
+                          /// ✅ Live Fleet Stats Grid (Now with Last Updated time)
                           _buildStatsGrid(),
-
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Divider(
-                              height: 1,
-                              thickness: 1,
-                              color: Color(0xFFF2F3F5),
-                            ),
-                          ),
-
-                          /// Driver Behavior Section
-                          const _SectionHeader(title: "سلوك السائق"),
-                          _DriverBehaviorCard(
-                            selectedTab: selectedTab,
-                            targetBusID: widget.busId, // ✅ Passed dynamic ID
-                          ),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -83,12 +60,11 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
     );
   }
 
-  // ✅ UPDATED: Now listens to live OBD2 data from Firebase
   Widget _buildStatsGrid() {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Buses')
-          .doc(widget.busId) // ✅ Listening to the correct bus document
+          .doc(widget.busId) 
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -102,29 +78,74 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
 
         var data = snapshot.data!.data() as Map<String, dynamic>;
 
-        // Using fallback values ('--') if the driver hasn't started the OBD scan yet
-        String fuelLevel = data['fuelLevel']?.toString() ?? "--";
+        // Fallbacks for OBD metrics
+        String fuelRate = data['fuelRate']?.toString() ?? "--";
         String mileage = data['mileage']?.toString() ?? "--";
         String battery = data['batteryLevel']?.toString() ?? "--";
-        String engineOil = data['engineOil']?.toString() ?? "غير متاح";
+        String currentSpeed = data['obdSpeed']?.toString() ?? "0";
+        String engineTemp = data['engineTemp']?.toString() ?? "--";
+        String engineLoad = data['engineLoad']?.toString() ?? "--";
+
+// ✅ Extract and format the last update timestamp with Date & Time
+        String lastUpdatedStr = "غير متوفر";
+        if (data['obdLastUpdated'] != null) {
+          DateTime dt = (data['obdLastUpdated'] as Timestamp).toDate();
+          
+          // 1. Format Time
+          String amPm = dt.hour >= 12 ? 'مساءً' : 'صباحاً';
+          int hour12 = dt.hour % 12;
+          if (hour12 == 0) hour12 = 12; 
+          String minute = dt.minute.toString().padLeft(2, '0');
+          
+          // 2. Format Date in Arabic
+          List<String> months = [
+            'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 
+            'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+          ];
+          String monthName = months[dt.month - 1];
+          
+          // Final Format: "6 مايو 2026، 3:27 مساءً"
+          lastUpdatedStr = "${dt.day} $monthName ${dt.year}، $hour12:$minute $amPm"; 
+        }
 
         return Column(
           children: [
+            // ✅ NEW: Last Updated Indicator Row
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.update, size: 16, color: Color(0xFF667085)),
+                  const SizedBox(width: 6),
+                  Text(
+                    "آخر تحديث لقراءات الحافلة: $lastUpdatedStr",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF667085),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ROW 1: Fuel Consumption & Mileage
             Row(
               children: [
                 Expanded(
                   child: _infoCard(
                     color: Colors.green[50]!,
                     icon: Icons.local_gas_station,
-                    title: "خزان الوقود",
-                    value: "$fuelLevel%",
+                    title: "استهلاك الوقود",
+                    value: "$fuelRate لتر/س",
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _infoCard(
                     color: Colors.blue[50]!,
-                    icon: Icons.speed,
+                    icon: Icons.map,
                     title: "المسافة المقطوعة",
                     value: "$mileage كم",
                   ),
@@ -132,6 +153,8 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            
+            // ROW 2: Battery & Speed
             Row(
               children: [
                 Expanded(
@@ -145,10 +168,34 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _infoCard(
+                    color: Colors.orange[50]!,
+                    icon: Icons.speed,
+                    title: "السرعة الحالية",
+                    value: "$currentSpeed كم/س",
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ROW 3: Engine Temp & Load
+            Row(
+              children: [
+                Expanded(
+                  child: _infoCard(
                     color: Colors.red[50]!,
-                    icon: Icons.oil_barrel,
-                    title: "زيت المحرك",
-                    value: engineOil,
+                    icon: Icons.thermostat,
+                    title: "حرارة المحرك",
+                    value: "$engineTemp°C",
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _infoCard(
+                    color: Colors.purple[50]!,
+                    icon: Icons.settings_applications, // Gear icon
+                    title: "حمل المحرك",
+                    value: "$engineLoad%",
                   ),
                 ),
               ],
@@ -156,53 +203,6 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
           ],
         );
       },
-    );
-  }
-
-  Widget _segmentedTabs() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: _kBg,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(children: [_tabItem("يومي", 0), _tabItem("شهري", 1)]),
-    );
-  }
-
-  Widget _tabItem(String label, int index) {
-    final isSelected = selectedTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => selectedTab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    const BoxShadow(
-                      color: Color(0x10000000),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                color: isSelected ? _kHeaderBlue : Colors.grey[600],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -351,181 +351,6 @@ class _MapSectionState extends State<_MapSection> {
   }
 }
 
-class _DriverBehaviorCard extends StatelessWidget {
-  final int selectedTab; // 0 = يومي, 1 = شهري
-  final String targetBusID;
-
-  const _DriverBehaviorCard({
-    required this.selectedTab,
-    required this.targetBusID,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    DateTime now = DateTime.now();
-    DateTime startDate;
-    if (selectedTab == 0) {
-      startDate = DateTime(now.year, now.month, now.day);
-    } else {
-      startDate = DateTime(now.year, now.month, 1);
-    }
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('Buses')
-          .doc(targetBusID)
-          .collection('DrivingEvents')
-          .where('type', isEqualTo: 'Speeding')
-          .where(
-            'timestamp',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-          )
-          .snapshots(),
-      builder: (context, snapshot) {
-        double brakingScore = 1.0;
-        double corneringScore = 1.0;
-        double speedingScore = 1.0;
-        int speedingEventsCount = 0;
-
-        if (snapshot.hasData) {
-          speedingEventsCount = snapshot.data!.docs.length;
-          speedingScore = 1.0 - (speedingEventsCount * 0.05);
-          if (speedingScore < 0) speedingScore = 0.0;
-        }
-
-        double overallScore =
-            (speedingScore + brakingScore + corneringScore) / 3;
-
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFF2F3F5)),
-          ),
-          child: Column(
-            children: [
-              _ProgressCircle(
-                label: "التقييم العام",
-                value: overallScore,
-                color: _getColorForScore(overallScore),
-                size: 120,
-                stroke: 10,
-              ),
-              const SizedBox(height: 30),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _ProgressCircle(
-                    label: "الانعطافات",
-                    value: corneringScore,
-                    color: _getColorForScore(corneringScore),
-                    size: 60,
-                    stroke: 5,
-                  ),
-                  _ProgressCircle(
-                    label: "الفرملة",
-                    value: brakingScore,
-                    color: _getColorForScore(brakingScore),
-                    size: 60,
-                    stroke: 5,
-                  ),
-                  _ProgressCircle(
-                    label: "السرعة",
-                    value: speedingScore,
-                    color: _getColorForScore(speedingScore),
-                    size: 60,
-                    stroke: 5,
-                  ),
-                ],
-              ),
-
-              if (speedingEventsCount > 0) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3F2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    "تم تسجيل $speedingEventsCount مخالفات سرعة ${selectedTab == 0 ? 'اليوم' : 'هذا الشهر'}",
-                    style: const TextStyle(
-                      color: Color(0xFFD92D20),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Color _getColorForScore(double score) {
-    if (score >= 0.8) return Colors.green;
-    if (score >= 0.5) return Colors.orange;
-    return Colors.red;
-  }
-}
-
-class _ProgressCircle extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-  final double size, stroke;
-
-  const _ProgressCircle({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.size,
-    required this.stroke,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: size,
-              height: size,
-              child: CircularProgressIndicator(
-                value: value,
-                strokeWidth: stroke,
-                color: color,
-                backgroundColor: Colors.grey[200],
-              ),
-            ),
-            Text(
-              "${(value * 100).toInt()}%",
-              style: TextStyle(
-                fontSize: size * 0.2,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF101828),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-        ),
-      ],
-    );
-  }
-}
-
 /* -------------------- Generic Project UI Kit -------------------- */
 
 class _TopHeader extends StatelessWidget {
@@ -601,28 +426,6 @@ class _MainCardContainer extends StatelessWidget {
         ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF98AF8D),
-          ),
-        ),
-      ),
     );
   }
 }

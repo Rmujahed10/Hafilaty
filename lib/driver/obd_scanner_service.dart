@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:bluetooth_serial_android/bluetooth_serial_android.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:permission_handler/permission_handler.dart'; // Added import
+import 'package:permission_handler/permission_handler.dart';
 
 class ObdScannerService {
   final String busId;
@@ -16,7 +16,6 @@ class ObdScannerService {
     try {
       debugPrint('🔵 Requesting Bluetooth permissions explicitly...');
       
-      // Request Bluetooth permissions explicitly using permission_handler
       final statuses = await [
         Permission.bluetooth,
         Permission.bluetoothConnect,
@@ -54,7 +53,6 @@ class ObdScannerService {
 
       debugPrint('🔗 Connecting to: ${obdDevice['name']} (${obdDevice['address']})');
 
-      // Standard SPP UUID used by all ELM327/OBD2 devices
       final bool connected = await FlutterBluetoothSerial.connect(
         obdDevice['address'],
         uuid: '00001101-0000-1000-8000-00805F9B34FB',
@@ -89,9 +87,9 @@ class ObdScannerService {
   }
 
   void startPolling() {
-    debugPrint('🚀 Starting OBD2 polling every 15 seconds...');
+    debugPrint('🚀 Starting OBD2 polling every 20 seconds...');
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 20), (_) async {
       if (!_isConnected) {
         debugPrint('📡 OBD disconnected, stopping polling.');
         stopPolling();
@@ -103,8 +101,9 @@ class ObdScannerService {
 
   Future<void> _readAndPushData() async {
     try {
-      final fuelResponse = await _sendCommandAndWait('012F\r');
-      final int fuelLevel = _parseFuelLevel(fuelResponse);
+      // ✅ CHANGED: Now asking for Fuel Rate (L/h) instead of Tank Level
+      final fuelRateResponse = await _sendCommandAndWait('015E\r');
+      final double fuelRate = _parseFuelRate(fuelRateResponse);
 
       final voltageResponse = await _sendCommandAndWait('ATRV\r');
       final int batteryPercent = _parseBatteryVoltage(voltageResponse);
@@ -112,18 +111,41 @@ class ObdScannerService {
       final distanceResponse = await _sendCommandAndWait('0131\r');
       final int distanceTraveled = _parseDistance(distanceResponse);
 
+      final speedResponse = await _sendCommandAndWait('010D\r');
+      final int currentSpeed = _parseSpeed(speedResponse);
+
+      final loadResponse = await _sendCommandAndWait('0104\r');
+      final int engineLoad = _parseEngineLoad(loadResponse);
+
+      final rpmResponse = await _sendCommandAndWait('010C\r');
+      final int engineRpm = _parseRPM(rpmResponse);
+
+      final tempResponse = await _sendCommandAndWait('0105\r');
+      final int engineTemp = _parseCoolantTemp(tempResponse);
+
+      final ambientResponse = await _sendCommandAndWait('0146\r');
+      final int ambientTemp = _parseAmbientTemp(ambientResponse);
+
+      final milResponse = await _sendCommandAndWait('0121\r');
+      final int milDistance = _parseMilDistance(milResponse);
+
       await FirebaseFirestore.instance
           .collection('Buses')
           .doc(busId)
           .set({
-            'fuelLevel': fuelLevel,
+            'fuelRate': fuelRate, // ✅ Push the new fuel metric
             'batteryLevel': batteryPercent,
             'mileage': distanceTraveled,
-            'engineOil': 'متبقي 1756 كم',
+            'obdSpeed': currentSpeed,
+            'engineLoad': engineLoad,
+            'engineRpm': engineRpm,
+            'engineTemp': engineTemp,
+            'ambientTemp': ambientTemp,
+            'milDistance': milDistance,
             'obdLastUpdated': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
-      debugPrint('📶 Pushed: Fuel $fuelLevel%, Battery $batteryPercent%, Dist $distanceTraveled km');
+      debugPrint('📶 Pushed OBD Data: Fuel Rate: $fuelRate L/h, Speed: $currentSpeed, RPM: $engineRpm');
     } catch (e) {
       debugPrint('⚠️ OBD read/push error: $e');
     }
@@ -141,7 +163,6 @@ class ObdScannerService {
     _dataBuffer = '';
     await _sendCommand(command);
 
-    // Poll read() until we get the '>' prompt or timeout
     int attempts = 0;
     while (!_dataBuffer.contains('>') && attempts < 20) {
       await Future.delayed(const Duration(milliseconds: 200));
@@ -161,15 +182,18 @@ class ObdScannerService {
 
   /* --- Parsers --- */
 
-  int _parseFuelLevel(String hex) {
+  // ✅ ADDED: Engine Fuel Rate parser (Liters per hour)
+  double _parseFuelRate(String hex) {
     hex = hex.replaceAll(' ', '').toUpperCase();
-    if (hex.contains('412F')) {
-      int start = hex.indexOf('412F') + 4;
-      if (hex.length >= start + 2) {
-        return ((int.parse(hex.substring(start, start + 2), radix: 16) * 100) / 255).round();
+    if (hex.contains('415E')) {
+      int idx = hex.indexOf('415E') + 4;
+      if (hex.length >= idx + 4) {
+        int a = int.parse(hex.substring(idx, idx + 2), radix: 16);
+        int b = int.parse(hex.substring(idx + 2, idx + 4), radix: 16);
+        return ((a * 256) + b) / 20.0;
       }
     }
-    return 0;
+    return 0.0;
   }
 
   int _parseBatteryVoltage(String response) {
@@ -189,6 +213,76 @@ class ObdScannerService {
         int a = int.parse(hex.substring(idx, idx + 2), radix: 16);
         int b = int.parse(hex.substring(idx + 2, idx + 4), radix: 16);
         return (a * 256) + b;
+      }
+    }
+    return 0;
+  }
+
+  int _parseSpeed(String hex) {
+    hex = hex.replaceAll(' ', '').toUpperCase();
+    if (hex.contains('410D')) {
+      int start = hex.indexOf('410D') + 4;
+      if (hex.length >= start + 2) {
+        return int.parse(hex.substring(start, start + 2), radix: 16);
+      }
+    }
+    return 0;
+  }
+
+  int _parseEngineLoad(String hex) {
+    hex = hex.replaceAll(' ', '').toUpperCase();
+    if (hex.contains('4104')) {
+      int start = hex.indexOf('4104') + 4;
+      if (hex.length >= start + 2) {
+        return ((int.parse(hex.substring(start, start + 2), radix: 16) * 100) / 255).round();
+      }
+    }
+    return 0;
+  }
+
+  int _parseRPM(String hex) {
+    hex = hex.replaceAll(' ', '').toUpperCase();
+    if (hex.contains('410C')) {
+      int idx = hex.indexOf('410C') + 4;
+      if (hex.length >= idx + 4) {
+        int a = int.parse(hex.substring(idx, idx + 2), radix: 16);
+        int b = int.parse(hex.substring(idx + 2, idx + 4), radix: 16);
+        return ((a * 256) + b) ~/ 4; 
+      }
+    }
+    return 0;
+  }
+
+  int _parseCoolantTemp(String hex) {
+    hex = hex.replaceAll(' ', '').toUpperCase();
+    if (hex.contains('4105')) {
+      int start = hex.indexOf('4105') + 4;
+      if (hex.length >= start + 2) {
+        return int.parse(hex.substring(start, start + 2), radix: 16) - 40;
+      }
+    }
+    return 0;
+  }
+
+  int _parseAmbientTemp(String hex) {
+    hex = hex.replaceAll(' ', '').toUpperCase();
+    if (hex.contains('4146')) {
+      int start = hex.indexOf('4146') + 4;
+      if (hex.length >= start + 2) {
+        return int.parse(hex.substring(start, start + 2), radix: 16) - 40;
+      }
+    }
+    return 0; 
+  }
+
+  int _parseMilDistance(String hex) {
+    hex = hex.replaceAll(' ', '').toUpperCase();
+    if (hex.contains('4121')) {
+      int idx = hex.indexOf('4121') + 4;
+      if (hex.length >= idx + 4) {
+        int a = int.parse(hex.substring(idx, idx + 2), radix: 16);
+        int b = int.parse(hex.substring(idx + 2, idx + 4), radix: 16);
+        return (a * 256) + b; 
       }
     }
     return 0;
