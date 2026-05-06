@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:bluetooth_serial_android/bluetooth_serial_android.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:permission_handler/permission_handler.dart'; // Added import
 
 class ObdScannerService {
   final String busId;
@@ -13,8 +14,19 @@ class ObdScannerService {
 
   Future<bool> autoConnect() async {
     try {
-      debugPrint('🔵 Requesting Bluetooth permissions...');
-      await FlutterBluetoothSerial.ensurePermissions();
+      debugPrint('🔵 Requesting Bluetooth permissions explicitly...');
+      
+      // Request Bluetooth permissions explicitly using permission_handler
+      final statuses = await [
+        Permission.bluetooth,
+        Permission.bluetoothConnect,
+        Permission.bluetoothScan,
+      ].request();
+
+      if (statuses[Permission.bluetoothConnect] != PermissionStatus.granted) {
+        debugPrint('❌ BLUETOOTH_CONNECT permission denied');
+        return false;
+      }
 
       debugPrint('🔎 Searching paired devices for OBD2...');
       final List<Map<String, dynamic>> paired =

@@ -23,6 +23,13 @@
     </queries>
 
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Add these BEFORE the <application> tag -->
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+
     <application
         android:label="hafilaty"
         android:name="${applicationName}"

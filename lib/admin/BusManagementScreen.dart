@@ -483,10 +483,11 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
                   driverName:
                       driverBadgeText, // ✅ Now strictly driven by the users collection
                   onAssignDriver: () => _assignDriverToBus(busDocId),
+                  // ✅ FIXED: Passed the dynamically tapped Bus ID to the Fleet Management Screen
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const FleetManagementScreen(),
+                      builder: (_) => FleetManagementScreen(busId: busDocId), 
                     ),
                   ),
                 );

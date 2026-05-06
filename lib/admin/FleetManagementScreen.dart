@@ -4,7 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class FleetManagementScreen extends StatefulWidget {
-  const FleetManagementScreen({super.key});
+  final String busId; // ✅ Required dynamic Bus ID
+
+  const FleetManagementScreen({super.key, required this.busId});
 
   @override
   State<FleetManagementScreen> createState() => _FleetManagementScreenState();
@@ -16,9 +18,6 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
 
   int selectedTab = 0; // 0 = يومي, 1 = شهري
-
-  // 💡 Centralized target bus ID for the whole screen
-  final String targetBusID = "Bus_32438_101";
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +41,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                       _MainCardContainer(
                         children: [
                           /// Map Preview Section
-                          _MapSection(targetBusID: targetBusID),
+                          _MapSection(targetBusID: widget.busId), // ✅ Passed dynamic ID
 
                           const SizedBox(height: 24),
 
@@ -67,7 +66,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                           const _SectionHeader(title: "سلوك السائق"),
                           _DriverBehaviorCard(
                             selectedTab: selectedTab,
-                            targetBusID: targetBusID,
+                            targetBusID: widget.busId, // ✅ Passed dynamic ID
                           ),
                         ],
                       ),
@@ -89,7 +88,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('Buses')
-          .doc(targetBusID)
+          .doc(widget.busId) // ✅ Listening to the correct bus document
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
