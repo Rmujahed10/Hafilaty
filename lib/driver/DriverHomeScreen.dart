@@ -22,6 +22,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   void initState() {
     super.initState();
+    // DEBUG: Print device date and timezone on startup
+    final now = DateTime.now();
+    final dateStr = DateFormat('yyyy-MM-dd', 'en_US').format(now);
+    debugPrint('🕐 Device date string: $dateStr');
+    debugPrint('🕐 Device timezone: ${now.timeZoneName}');
+    debugPrint('🕐 Device UTC offset: ${now.timeZoneOffset}');
+    debugPrint('🕐 Raw DateTime.now(): $now');
     _loadDriverBus();
   }
 
@@ -40,6 +47,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         isLoadingBus = false;
       });
 
+      debugPrint('🚌 Assigned Bus ID: $assignedBusId');
       _checkAndResetDailyTrips();
     }
   }
@@ -61,16 +69,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final lastUpdatedDate = lastUpdated.toDate();
       final now = DateTime.now();
 
-      // Check if the last update was on a previous day
       bool isNewDay =
           now.day != lastUpdatedDate.day ||
           now.month != lastUpdatedDate.month ||
           now.year != lastUpdatedDate.year;
 
-      // Check if it is past 3:00 PM (15:00) today
       bool isPast3PM = now.hour >= 15;
 
-      // Trigger reset if it's a completely new day OR (it's past 3 PM and the afternoon trip isn't already reset)
       if (isNewDay || (isPast3PM && afternoonStatus != 'لم تبدأ')) {
         await FirebaseFirestore.instance
             .collection('Buses')
@@ -81,7 +86,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               'LastUpdated': FieldValue.serverTimestamp(),
             });
 
-        // Optional: Trigger a quick UI refresh if the status changed while the user is looking at the screen
         if (mounted) setState(() {});
       }
     }
@@ -122,7 +126,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                         .doc(assignedBusId)
                                         .snapshots(),
                                     builder: (context, snapshot) {
-                                      // ✅ 1. Set distinct default statuses
                                       String morningStatus = "لم تبدأ";
                                       String afternoonStatus = "لم تبدأ";
 
@@ -132,7 +135,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                             snapshot.data!.data()
                                                 as Map<String, dynamic>;
 
-                                        // ✅ 2. Read the specific fields defined by your backend AI
                                         morningStatus =
                                             busData['morningTripStatus'] ??
                                             "لم تبدأ";
@@ -156,8 +158,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                             title: 'رحلة الذهاب',
                                             destination: 'المدرسة',
                                             time: '5:30 صباحاً',
-                                            status:
-                                                morningStatus, // ✅ 3. Pass specific morning status
+                                            status: morningStatus,
                                             busId: assignedBusId!,
                                             isActive: isMorningActive,
                                             isMorningTrip: true,
@@ -168,8 +169,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                             title: 'رحلة العودة',
                                             destination: 'منازل الطلاب',
                                             time: '1:30 مساءً',
-                                            status:
-                                                afternoonStatus, // ✅ 4. Pass specific afternoon status
+                                            status: afternoonStatus,
                                             busId: assignedBusId!,
                                             isActive: isAfternoonActive,
                                             isMorningTrip: false,
@@ -230,6 +230,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     required bool isActive,
     required bool isMorningTrip,
   }) {
+    // DEBUG: Build the exact date string being queried
+    final now = DateTime.now();
+    final dateStr = DateFormat('yyyy-MM-dd', 'en_US').format(now);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -264,24 +268,57 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           _buildDataRow('وقت البداية', time),
           _buildDataRow('الحالة', status),
 
-          // ✅ جعلنا الـ StreamBuilder يغطي كل من (عدد الطلاب) و (الزر) معاً
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('Attendance')
-                .doc(DateFormat('yyyy-MM-dd').format(DateTime.now()))
+                .doc(dateStr)
                 .collection('PresentStudents')
                 .snapshots(),
             builder: (context, snapshot) {
+              // DEBUG: Log snapshot state on every rebuild
+              debugPrint('📅 Querying Attendance/$dateStr/PresentStudents');
+              debugPrint('📊 ConnectionState: ${snapshot.connectionState}');
+              debugPrint('📊 HasData: ${snapshot.hasData}');
+              debugPrint('📊 HasError: ${snapshot.hasError}');
+              if (snapshot.hasError) {
+                debugPrint('❌ Error: ${snapshot.error}');
+              }
+              debugPrint('📊 Raw doc count: ${snapshot.data?.docs.length ?? 0}');
+              debugPrint('🚌 Filtering for busId: "$busId"');
+
               int count = 0;
 
               if (snapshot.hasData && snapshot.data != null) {
-                count = snapshot.data!.docs.where((doc) {
+                for (final doc in snapshot.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final studentBusId = data['BusID']?.toString() ?? '';
-                  return studentBusId.isNotEmpty &&
-                      busId.contains(studentBusId);
-                }).length;
+
+                  // DEBUG: Print every document's fields for inspection
+                  debugPrint('👤 Student doc [${doc.id}]:');
+                  debugPrint('   All keys: ${data.keys.toList()}');
+                  debugPrint('   BusID    = "${data['BusID']}"');
+                  debugPrint('   busId    = "${data['busId']}"');
+                  debugPrint('   busID    = "${data['busID']}"');
+                  debugPrint('   AssignedBusID = "${data['AssignedBusID']}"');
+
+                  // AFTER
+final studentBusId = (data['BusID'] ?? data['busId'] ?? data['busID'] ?? data['AssignedBusID'] ?? '')
+    .toString()
+    .trim();
+
+// Extract numeric suffix from busId: "Bus_32438_102" → "102"
+final busIdSuffix = busId.trim().split('_').last;
+
+final matches = studentBusId.isNotEmpty && studentBusId == busIdSuffix;
+
+                  debugPrint(
+                    '   studentBusId="$studentBusId" | driverBusId="${busId.trim()}" | match=$matches',
+                  );
+
+                  if (matches) count++;
+                }
               }
+
+              debugPrint('✅ Final count for "$busId": $count');
 
               return Column(
                 children: [
@@ -290,37 +327,34 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      // ✅ تم إضافة شرط التأكد من عدد الطلاب هنا
                       onPressed: isActive
                           ? () {
                               if (count == 0) {
-                                // 🚫 منع الانتقال وإظهار رسالة للسائق
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                      'لا يوجد طلاب',
+                                      'تنبيه: لا يوجد طلاب، جاري فتح الخريطة...',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                        fontSize: 14,
                                       ),
                                       textAlign: TextAlign.center,
                                     ),
-                                    backgroundColor: Colors.redAccent,
+                                    backgroundColor: Colors.orange,
                                     duration: Duration(seconds: 2),
                                   ),
                                 );
-                              } else {
-                                // ✅ السماح بالانتقال للصفحة إذا كان العدد أكبر من صفر
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => TripMapScreen(
-                                      busId: busId,
-                                      isMorningTrip: isMorningTrip,
-                                    ),
-                                  ),
-                                );
                               }
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TripMapScreen(
+                                    busId: busId,
+                                    isMorningTrip: isMorningTrip,
+                                  ),
+                                ),
+                              );
                             }
                           : null,
                       style: ElevatedButton.styleFrom(
@@ -445,7 +479,6 @@ class _TopHeader extends StatelessWidget {
           ),
           const Spacer(),
           const SizedBox(width: 48),
-
           IconButton(
             onPressed: onLang,
             icon: const Icon(Icons.language, color: Colors.white),

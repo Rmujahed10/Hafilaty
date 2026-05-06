@@ -8,18 +8,18 @@ class StudentPinModel {
   final String name;
   final double lat;
   final double lng;
-  final String busIdInDoc; // ✅ Added this field
-  String parentPhone; // ✅ تمت الإضافة
-  bool isNearNotificationSent; // ✅ تمت الإضافة
+  final String busIdInDoc;
+  String parentPhone;
+  bool isNearNotificationSent;
 
   StudentPinModel({
     required this.studentId,
     required this.name,
     required this.lat,
     required this.lng,
-    required this.busIdInDoc, // ✅ Added to constructor
-    this.parentPhone = '', // ✅ قيمة افتراضية
-    this.isNearNotificationSent = false, // ✅ قيمة افتراضية
+    required this.busIdInDoc,
+    this.parentPhone = '',
+    this.isNearNotificationSent = false,
   });
 }
 
@@ -31,58 +31,88 @@ class SchoolModel {
 }
 
 class TripPinsService {
-Future<SchoolModel?> getSchoolLocationForBus(String busId) async {
+  Future<SchoolModel?> getSchoolLocationForBus(String busId) async {
     debugPrint("=== START FETCHING SCHOOL FOR BUS: $busId ===");
     try {
-      // 1. Check Bus Document
-      DocumentSnapshot busDoc = await FirebaseFirestore.instance.collection('Buses').doc(busId).get();
+      DocumentSnapshot busDoc = await FirebaseFirestore.instance
+          .collection('Buses')
+          .doc(busId)
+          .get();
+
       if (!busDoc.exists) {
         debugPrint("FAIL: Bus document '$busId' DOES NOT EXIST in Firestore.");
         return null;
       }
       debugPrint("SUCCESS: Found Bus document.");
 
-      // 2. Safely extract School ID
       final busData = busDoc.data() as Map<String, dynamic>?;
       if (busData == null || !busData.containsKey('SchoolID')) {
-         debugPrint("FAIL: Bus document is missing the 'SchoolID' field.");
-         return null;
+        debugPrint("FAIL: Bus document is missing the 'SchoolID' field.");
+        return null;
       }
       String schoolId = busData['SchoolID'].toString();
       debugPrint("SUCCESS: Extracted SchoolID: $schoolId");
 
-      // 3. Fetch School Document
-      DocumentSnapshot schoolDoc = await FirebaseFirestore.instance.collection('Schools').doc(schoolId).get();
+      DocumentSnapshot schoolDoc = await FirebaseFirestore.instance
+          .collection('Schools')
+          .doc(schoolId)
+          .get();
+
       if (!schoolDoc.exists) {
-        debugPrint("FAIL: School document '$schoolId' DOES NOT EXIST in 'Schools' collection.");
+        debugPrint(
+          "FAIL: School document '$schoolId' DOES NOT EXIST in 'Schools' collection.",
+        );
         return null;
       }
       debugPrint("SUCCESS: Found School document.");
 
-      // 4. Safely extract coordinates
       final schoolData = schoolDoc.data() as Map<String, dynamic>;
-      debugPrint("RAW SCHOOL DATA: $schoolData"); // This will show us your exact field names!
+      debugPrint("RAW SCHOOL DATA: $schoolData");
 
-      double lat = double.tryParse((schoolData['Latitude'] ?? schoolData['Latitude '] ?? schoolData['latitude'] ?? 0).toString()) ?? 0.0;
-      double lng = double.tryParse((schoolData['Longitude'] ?? schoolData['Longtitude '] ?? schoolData['Longtitude'] ?? schoolData['longitude'] ?? 0).toString()) ?? 0.0;
+      double lat = double.tryParse(
+            (schoolData['Latitude'] ??
+                    schoolData['Latitude '] ??
+                    schoolData['latitude'] ??
+                    0)
+                .toString(),
+          ) ??
+          0.0;
+      double lng = double.tryParse(
+            (schoolData['Longitude'] ??
+                    schoolData['Longtitude '] ??
+                    schoolData['Longtitude'] ??
+                    schoolData['longitude'] ??
+                    0)
+                .toString(),
+          ) ??
+          0.0;
 
       if (lat == 0.0 || lng == 0.0) {
-        debugPrint("FAIL: Coordinates are 0.0. The field names in Firestore don't match our code.");
+        debugPrint(
+          "FAIL: Coordinates are 0.0. The field names in Firestore don't match our code.",
+        );
         return null;
       }
 
       debugPrint("=== SUCCESS: School Model Created: Lat $lat, Lng $lng ===");
       return SchoolModel(schoolId: schoolId, lat: lat, lng: lng);
-      
     } catch (e) {
       debugPrint("CRITICAL CATCH ERROR in getSchoolLocation: $e");
     }
     return null;
   }
 
-  // ✅ Updated to accept busId for filtering
   Future<List<StudentPinModel>> getPresentStudentsData(String busId) async {
-    String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    // FIX 1: Add 'en_US' locale so physical devices don't produce Arabic numerals
+    String todayDate = DateFormat('yyyy-MM-dd', 'en_US').format(DateTime.now());
+
+    // FIX 2: Extract numeric suffix for exact matching
+    // "Bus_32438_102" → "102", but if already "102" it stays "102"
+    final String busIdSuffix = busId.split('_').last;
+
+    debugPrint("📅 getPresentStudentsData date: $todayDate");
+    debugPrint("🚌 Filtering for busIdSuffix: $busIdSuffix");
+
     try {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('Attendance')
@@ -90,20 +120,29 @@ Future<SchoolModel?> getSchoolLocationForBus(String busId) async {
           .collection('PresentStudents')
           .get();
 
-      return querySnapshot.docs
+      debugPrint("📊 Total attendance docs: ${querySnapshot.docs.length}");
+
+      final students = querySnapshot.docs
           .map((doc) {
             final data = doc.data();
             return StudentPinModel(
-              studentId: data['StudentID']?.toString() ?? '',
+              studentId: data['StudentID']?.toString() ?? doc.id,
               name: data['StudentName_ar']?.toString() ?? 'طالب',
               lat: double.tryParse(data['Latitude'].toString()) ?? 0.0,
               lng: double.tryParse(data['Longitude'].toString()) ?? 0.0,
-              busIdInDoc: data['BusID']?.toString() ?? '', // ✅ Now defined
+              busIdInDoc: data['BusID']?.toString() ?? '',
             );
           })
-          // ✅ Filter students: only those whose BusID is part of your full busId string
-          .where((student) => busId.contains(student.busIdInDoc) && student.busIdInDoc.isNotEmpty)
+          // FIX 2: Exact match instead of contains()
+          .where(
+            (student) =>
+                student.busIdInDoc.isNotEmpty &&
+                student.busIdInDoc == busIdSuffix,
+          )
           .toList();
+
+      debugPrint("✅ Students matched for bus $busIdSuffix: ${students.length}");
+      return students;
     } catch (e) {
       if (kDebugMode) {
         print("Error fetching students: $e");
@@ -117,10 +156,7 @@ Future<SchoolModel?> getSchoolLocationForBus(String busId) async {
       return Marker(
         markerId: MarkerId(s.studentId),
         position: LatLng(s.lat, s.lng),
-        infoWindow: InfoWindow(
-          title: s.name,
-          snippet: "طالب",
-        ),
+        infoWindow: InfoWindow(title: s.name, snippet: "طالب"),
       );
     }).toSet();
   }

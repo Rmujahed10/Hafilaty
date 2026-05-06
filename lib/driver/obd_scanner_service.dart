@@ -1,114 +1,87 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:bluetooth_serial_android/bluetooth_serial_android.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ObdScannerService {
   final String busId;
-  BluetoothDevice? _device;
-  BluetoothCharacteristic? _writeCharacteristic;
-  BluetoothCharacteristic? _readCharacteristic;
-
-  StreamSubscription? _lastSubscription;
-  Timer? _pollingTimer;
   String _dataBuffer = '';
+  Timer? _pollingTimer;
+  bool _isConnected = false;
 
   ObdScannerService({required this.busId});
 
-  /// 1. البحث والاتصال التلقائي بجهاز OBD2
   Future<bool> autoConnect() async {
     try {
-      print('🔎 Starting Scan for OBD2...');
+      debugPrint('🔵 Requesting Bluetooth permissions...');
+      await FlutterBluetoothSerial.ensurePermissions();
 
-      // التأكد من أن البلوتوث يعمل
-      if (await FlutterBluePlus.adapterState.first !=
-          BluetoothAdapterState.on) {
-        print("❌ Bluetooth is turned off.");
-        return false;
-      }
+      debugPrint('🔎 Searching paired devices for OBD2...');
+      final List<Map<String, dynamic>> paired =
+          await FlutterBluetoothSerial.getPairedDevices();
 
-      // البحث عن الأجهزة القريبة
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-
-      // الحصول على النتائج
-      var results = await FlutterBluePlus.scanResults.first;
-      for (ScanResult r in results) {
-        String name = r.device.platformName;
-        if (name.contains("OBD") ||
-            name.contains("Edasion") ||
-            name.contains("ELM")) {
-          _device = r.device;
+      Map<String, dynamic>? obdDevice;
+      for (final device in paired) {
+        final name = (device['name'] ?? '').toString();
+        debugPrint('📱 Paired: $name (${device['address']})');
+        if (name.contains('OBD') ||
+            name.contains('Edasion') ||
+            name.contains('ELM') ||
+            name.contains('OBDII') ||
+            name.contains('obd')) {
+          obdDevice = device;
           break;
         }
       }
 
-      if (_device == null) {
-        print("❌ No OBD2 device found nearby.");
+      if (obdDevice == null) {
+        debugPrint('❌ No OBD2 device found in paired devices.');
+        debugPrint('👉 Pair the Edasion OBD2 in Android Bluetooth settings first.');
         return false;
       }
 
-      print('🔗 Connecting to: ${_device!.platformName}...');
-      await FlutterBluePlus.startScan(
-        timeout: const Duration(seconds: 5),
-        // لاحظ: لا تضع أي شيء هنا اسمه license
+      debugPrint('🔗 Connecting to: ${obdDevice['name']} (${obdDevice['address']})');
+
+      // Standard SPP UUID used by all ELM327/OBD2 devices
+      final bool connected = await FlutterBluetoothSerial.connect(
+        obdDevice['address'],
+        uuid: '00001101-0000-1000-8000-00805F9B34FB',
+        timeoutMs: 5000,
       );
-      // اكتشاف الخدمات
-      List<BluetoothService> services = await _device!.discoverServices();
-      for (var service in services) {
-        for (var characteristic in service.characteristics) {
-          // خاصية الكتابة
-          if (characteristic.properties.write ||
-              characteristic.properties.writeWithoutResponse) {
-            _writeCharacteristic = characteristic;
-          }
-          // خاصية القراءة والإشعارات
-          if (characteristic.properties.notify ||
-              characteristic.properties.read) {
-            _readCharacteristic = characteristic;
-          }
-        }
+
+      if (!connected) {
+        debugPrint('❌ Connection failed.');
+        return false;
       }
 
-      if (_writeCharacteristic != null && _readCharacteristic != null) {
-        await _readCharacteristic!.setNotifyValue(true);
+      _isConnected = true;
+      debugPrint('✅ Connected to OBD2 via Classic Bluetooth SPP!');
 
-        // تنظيف أي اشتراك سابق لتجنب تداخل البيانات
-        await _lastSubscription?.cancel();
-
-        _lastSubscription = _readCharacteristic!.lastValueStream.listen((
-          value,
-        ) {
-          _dataBuffer += ascii.decode(value);
-        });
-
-        print('✅ Connected and Configured!');
-        await _initializeElm327();
-        return true;
-      }
-
-      return false;
+      await _initializeElm327();
+      return true;
     } catch (e) {
-      print('❌ Connection Error: $e');
+      debugPrint('❌ autoConnect error: $e');
       return false;
     }
   }
 
-  /// 2. تهيئة شريحة ELM327
   Future<void> _initializeElm327() async {
-    await _sendCommand("ATZ\r"); // Reset
+    debugPrint('⚙️ Initializing ELM327...');
+    await _sendCommand('ATZ\r');
     await Future.delayed(const Duration(seconds: 1));
-    await _sendCommand("ATE0\r"); // Echo Off
-    await _sendCommand("ATL0\r"); // Linefeeds Off
-    await _sendCommand("ATSP0\r"); // Auto Protocol
+    await _sendCommand('ATE0\r');  // Echo off
+    await _sendCommand('ATL0\r');  // Linefeeds off
+    await _sendCommand('ATS0\r');  // Spaces off
+    await _sendCommand('ATSP0\r'); // Auto protocol
+    debugPrint('✅ ELM327 initialized.');
   }
 
-  /// 3. بدء جلب البيانات بشكل دوري
   void startPolling() {
-    print('🚀 Starting OBD2 Polling...');
-    _pollingTimer?.cancel(); // إلغاء أي تايمر قديم
-    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
-      if (_device == null || !(_device!.isConnected)) {
-        print("📡 Device disconnected, stopping poll.");
+    debugPrint('🚀 Starting OBD2 polling every 15 seconds...');
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (!_isConnected) {
+        debugPrint('📡 OBD disconnected, stopping polling.');
         stopPolling();
         return;
       }
@@ -116,42 +89,39 @@ class ObdScannerService {
     });
   }
 
-  /// 4. جلب البيانات وإرسالها لـ Firestore
   Future<void> _readAndPushData() async {
     try {
-      String fuelResponse = await _sendCommandAndWait("012F\r");
-      int fuelLevel = _parseFuelLevel(fuelResponse);
+      final fuelResponse = await _sendCommandAndWait('012F\r');
+      final int fuelLevel = _parseFuelLevel(fuelResponse);
 
-      String voltageResponse = await _sendCommandAndWait("ATRV\r");
-      int batteryPercent = _parseBatteryVoltage(voltageResponse);
+      final voltageResponse = await _sendCommandAndWait('ATRV\r');
+      final int batteryPercent = _parseBatteryVoltage(voltageResponse);
 
-      String distanceResponse = await _sendCommandAndWait("0131\r");
-      int distanceTraveled = _parseDistance(distanceResponse);
+      final distanceResponse = await _sendCommandAndWait('0131\r');
+      final int distanceTraveled = _parseDistance(distanceResponse);
 
-      await FirebaseFirestore.instance.collection('Buses').doc(busId).set({
-        'fuelLevel': fuelLevel,
-        'batteryLevel': batteryPercent,
-        'mileage': distanceTraveled,
-        'engineOil': "متبقي 1756 كم",
-        'obdLastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('Buses')
+          .doc(busId)
+          .set({
+            'fuelLevel': fuelLevel,
+            'batteryLevel': batteryPercent,
+            'mileage': distanceTraveled,
+            'engineOil': 'متبقي 1756 كم',
+            'obdLastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      print(
-        '📶 Pushed: Fuel $fuelLevel%, Battery $batteryPercent%, Dist $distanceTraveled km',
-      );
+      debugPrint('📶 Pushed: Fuel $fuelLevel%, Battery $batteryPercent%, Dist $distanceTraveled km');
     } catch (e) {
-      print('⚠️ OBD Read/Push Error: $e');
+      debugPrint('⚠️ OBD read/push error: $e');
     }
   }
 
-  /* --- أدوات التواصل --- */
-
   Future<void> _sendCommand(String command) async {
-    if (_writeCharacteristic != null) {
-      await _writeCharacteristic!.write(
-        ascii.encode(command),
-        withoutResponse: false,
-      );
+    try {
+      await FlutterBluetoothSerial.write(command);
+    } catch (e) {
+      debugPrint('⚠️ Send error: $e');
     }
   }
 
@@ -159,44 +129,42 @@ class ObdScannerService {
     _dataBuffer = '';
     await _sendCommand(command);
 
+    // Poll read() until we get the '>' prompt or timeout
     int attempts = 0;
-    while (!_dataBuffer.contains('>') && attempts < 15) {
+    while (!_dataBuffer.contains('>') && attempts < 20) {
       await Future.delayed(const Duration(milliseconds: 200));
+      final chunk = await FlutterBluetoothSerial.read();
+      if (chunk != null) _dataBuffer += chunk;
       attempts++;
     }
 
-    String response = _dataBuffer.replaceAll('>', '').trim();
-    return response;
+    return _dataBuffer.replaceAll('>', '').trim();
   }
 
   void stopPolling() {
     _pollingTimer?.cancel();
-    _lastSubscription?.cancel();
-    _device?.disconnect();
-    print('🛑 OBD Stopped.');
+    _isConnected = false;
+    debugPrint('🛑 OBD stopped.');
   }
 
-  /* --- معادلات التحليل --- */
+  /* --- Parsers --- */
 
   int _parseFuelLevel(String hex) {
     hex = hex.replaceAll(' ', '').toUpperCase();
     if (hex.contains('412F')) {
       int start = hex.indexOf('412F') + 4;
       if (hex.length >= start + 2) {
-        String val = hex.substring(start, start + 2);
-        return ((int.parse(val, radix: 16) * 100) / 255).round();
+        return ((int.parse(hex.substring(start, start + 2), radix: 16) * 100) / 255).round();
       }
     }
     return 0;
   }
 
   int _parseBatteryVoltage(String response) {
-    final regExp = RegExp(r"(\d+\.\d+)");
-    final match = regExp.firstMatch(response);
+    final match = RegExp(r'(\d+\.\d+)').firstMatch(response);
     if (match != null) {
       double voltage = double.parse(match.group(1)!);
-      double percent = ((voltage - 11.8) / (12.6 - 11.8)) * 100;
-      return percent.clamp(0, 100).round();
+      return ((voltage - 11.8) / (12.6 - 11.8) * 100).clamp(0, 100).round();
     }
     return 0;
   }

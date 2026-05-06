@@ -1,3 +1,5 @@
+// ignore_for_file: file_names, deprecated_member_use
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,7 +15,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'TripDetailsScreen.dart';
 import '../services/trip_pins_service.dart';
 import '../services/trip_navigation_service.dart';
-// ✅ 1. Import the OBD Scanner Service
 import 'obd_scanner_service.dart';
 
 class TripMapScreen extends StatefulWidget {
@@ -43,7 +44,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
   final TripPinsService _tripPinsService = TripPinsService();
   final TripNavigationService _tripNavigationService = TripNavigationService();
 
-  // ✅ 2. OBD Scanner State Variables
   ObdScannerService? _obdScannerService;
   bool _isObdConnected = false;
 
@@ -66,52 +66,23 @@ class _TripMapScreenState extends State<TripMapScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTripData();
-    _startLiveTracking();
-    _startObdScanner(); // ✅ 3. Start OBD connection process
+    // ✅ FIX 1: Launch Database and Hardware on completely independent, parallel threads.
+    // If the phone's GPS crashes, the Database will still successfully load the students!
+    _fetchStudentsFromFirestore();
+    _initializeHardwareServices();
   }
 
   @override
   void dispose() {
     _positionStreamSubscription?.cancel();
-    _obdScannerService?.stopPolling(); // ✅ 4. Stop OBD polling to save battery
+    _obdScannerService?.stopPolling();
     super.dispose();
   }
 
-  // ✅ 5. OBD Startup Function
-  Future<void> _startObdScanner() async {
-    _obdScannerService = ObdScannerService(busId: widget.busId);
-
-    // Attempt to connect to the Bluetooth device
-    bool connected = await _obdScannerService!.autoConnect();
-
-    // Update the UI indicator
-    if (mounted) {
-      setState(() {
-        _isObdConnected = connected;
-      });
-    }
-
-    // Start pushing data if connected
-    if (connected) {
-      _obdScannerService!.startPolling();
-    }
-  }
-
-  Future<void> _loadTripData() async {
+  // ✅ FIX 2: Isolated Firestore Thread - Guaranteed to run regardless of GPS status
+  Future<void> _fetchStudentsFromFirestore() async {
     try {
       if (widget.busId.isEmpty) return;
-
-      try {
-        Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 5),
-        );
-        _currentBusLocation = LatLng(position.latitude, position.longitude);
-      } catch (e) {
-        debugPrint("GPS Blocked (Web). Using fallback location. Error: $e");
-        _currentBusLocation = _initialPosition;
-      }
 
       final busDoc = await FirebaseFirestore.instance
           .collection('Buses')
@@ -127,12 +98,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
       _schoolModel = await _tripPinsService.getSchoolLocationForBus(
         widget.busId,
       );
-      if (_schoolModel == null) {
-        debugPrint("CRITICAL: School model returned null.");
-      }
-
+      final String busIdSuffix = widget.busId
+          .split('_')
+          .last; // "Bus_32438_102" → "102"
       final List<StudentPinModel> rawStudents = await _tripPinsService
-          .getPresentStudentsData(widget.busId);
+          .getPresentStudentsData(busIdSuffix);
       List<StudentPinModel> pendingStudents = [];
 
       for (var student in rawStudents) {
@@ -142,9 +112,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
             .collection('Students')
             .doc(student.studentId)
             .get();
-
         final status = studentDoc.data()?['busStatus'] ?? '';
-
         student.parentPhone = studentDoc.data()?['parentPhone'] ?? '';
 
         bool isStopCompleted = widget.isMorningTrip
@@ -173,27 +141,101 @@ class _TripMapScreenState extends State<TripMapScreen> {
         );
       }
 
+      if (mounted) {
+        setState(() {
+          _students = pendingStudents;
+          // Retain bus marker if hardware thread found it first
+          if (_busMarker != null) {
+            markers.add(_busMarker!);
+          }
+          _markers = markers;
+        });
+      }
+
+      // If hardware thread already found GPS, draw the route
+      if (_currentBusLocation != null &&
+          _students.isNotEmpty &&
+          _schoolModel != null) {
+        await _getRoutePolyline();
+        await _fitMapToMarkers();
+      }
+    } catch (e) {
+      debugPrint("Firestore fetch error: $e");
+    }
+  }
+
+  // ✅ FIX 3: Isolated Hardware Thread - Wrapped safely so exceptions don't kill the app
+  Future<void> _initializeHardwareServices() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          Position? pos;
+          try {
+            pos = await Geolocator.getLastKnownPosition();
+          } catch (e) {}
+
+          if (pos == null) {
+            pos = await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.high,
+              timeLimit: const Duration(seconds: 4),
+            );
+          }
+          _currentBusLocation = LatLng(pos.latitude, pos.longitude);
+        } else {
+          _currentBusLocation = _initialPosition;
+        }
+      } else {
+        _currentBusLocation = _initialPosition;
+      }
+    } catch (e) {
+      debugPrint("Hardware GPS Error: $e");
+      _currentBusLocation = _initialPosition;
+    }
+
+    if (_currentBusLocation != null) {
       _busMarker = Marker(
         markerId: const MarkerId("bus_location"),
         position: _currentBusLocation!,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: const InfoWindow(title: "موقعي الحالي"),
       );
-      markers.add(_busMarker!);
 
       if (mounted) {
         setState(() {
-          _students = pendingStudents;
-          _markers = markers;
+          _markers.removeWhere((m) => m.markerId.value == "bus_location");
+          _markers.add(_busMarker!);
         });
       }
 
-      if (_students.isNotEmpty) {
+      // If Database thread already finished loading students, draw the route
+      if (_students.isNotEmpty && _schoolModel != null) {
         await _getRoutePolyline();
         await _fitMapToMarkers();
       }
-    } catch (e) {
-      debugPrint("Error loading trip data: $e");
+    }
+
+    // Start background listeners
+    _startLiveTracking();
+    _startObdScanner();
+  }
+
+  Future<void> _startObdScanner() async {
+    _obdScannerService = ObdScannerService(busId: widget.busId);
+    bool connected = await _obdScannerService!.autoConnect();
+    if (mounted) {
+      setState(() {
+        _isObdConnected = connected;
+      });
+    }
+    if (connected) {
+      _obdScannerService!.startPolling();
     }
   }
 
@@ -220,47 +262,57 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   Future<void> _startLiveTracking() async {
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      _positionStreamSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
+            ),
+          ).listen((Position position) {
+            LatLng newLocation = LatLng(position.latitude, position.longitude);
+
+            if (mounted) {
+              setState(() {
+                _currentBusLocation = newLocation;
+                _busMarker = Marker(
+                  markerId: const MarkerId("bus_location"),
+                  position: newLocation,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueBlue,
+                  ),
+                  infoWindow: const InfoWindow(title: "موقعي الحالي"),
+                );
+                _markers.removeWhere((m) => m.markerId.value == "bus_location");
+                _markers.add(_busMarker!);
+              });
+            }
+
+            FirebaseFirestore.instance
+                .collection('Buses')
+                .doc(widget.busId)
+                .set({
+                  'lat': position.latitude,
+                  'lng': position.longitude,
+                  'LastUpdated': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+
+            _checkArrivalProximity(newLocation);
+            _checkWarningProximity(newLocation);
+            _checkSpeeding(position);
+          });
+    } catch (e) {
+      debugPrint("Live tracking error: $e");
     }
-
-    _positionStreamSubscription =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 10,
-          ),
-        ).listen((Position position) {
-          LatLng newLocation = LatLng(position.latitude, position.longitude);
-
-          if (mounted) {
-            setState(() {
-              _currentBusLocation = newLocation;
-              _busMarker = Marker(
-                markerId: const MarkerId("bus_location"),
-                position: newLocation,
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueBlue,
-                ),
-                infoWindow: const InfoWindow(title: "موقعي الحالي"),
-              );
-              _markers.removeWhere((m) => m.markerId.value == "bus_location");
-              _markers.add(_busMarker!);
-            });
-          }
-
-          FirebaseFirestore.instance.collection('Buses').doc(widget.busId).set({
-            'lat': position.latitude,
-            'lng': position.longitude,
-            'LastUpdated': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-
-          _checkArrivalProximity(newLocation);
-          _checkWarningProximity(newLocation);
-          _checkSpeeding(position);
-        });
   }
 
   void _checkWarningProximity(LatLng currentLoc) {
@@ -816,7 +868,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                             await _getRoutePolyline();
 
                             if (mounted) {
-                              // ignore: use_build_context_synchronously
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
@@ -890,7 +941,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                           _mapController.complete(controller),
                     ),
 
-                    // ✅ 6. New UI Indicator for OBD Connection Status
                     Positioned(
                       top: 16,
                       left: 16,

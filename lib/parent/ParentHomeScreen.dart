@@ -18,7 +18,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   static const Color _kBg = Color(0xFFF2F3F5);
   static const Color _kTextMain = Color(0xFF101828);
 
-  static const bool isTestingMode = false;
+  static const bool isTestingMode = true;
 
   final user = FirebaseAuth.instance.currentUser;
 
@@ -360,7 +360,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
 
     bool isTimeExpired = isTestingMode ? false : !(hour >= 19 || hour < 5);
 
-    DateTime targetDate = (hour >= 19) ? now.add(const Duration(days: 1)) : now;
+    DateTime targetDate = isTestingMode
+        ? now
+        : ((hour >= 19) ? now.add(const Duration(days: 1)) : now);
 
     // ✅ SMART RESET LOGIC: Check if the status belongs to the upcoming trip
     String targetFormattedDate =
