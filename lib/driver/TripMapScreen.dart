@@ -103,17 +103,35 @@ class _TripMapScreenState extends State<TripMapScreen> {
           .last; // "Bus_32438_102" → "102"
       final List<StudentPinModel> rawStudents = await _tripPinsService
           .getPresentStudentsData(busIdSuffix);
+          
       List<StudentPinModel> pendingStudents = [];
+      
+      // ✅ Get today's date safely
+      String todayDate = DateFormat('yyyy-MM-dd', 'en_US').format(DateTime.now());
 
       for (var student in rawStudents) {
         if (student.lat == 0.0 && student.lng == 0.0) continue;
 
+        // 1. Get static data (parentPhone) from Students collection
         final studentDoc = await FirebaseFirestore.instance
             .collection('Students')
             .doc(student.studentId)
             .get();
-        final status = studentDoc.data()?['busStatus'] ?? '';
         student.parentPhone = studentDoc.data()?['parentPhone'] ?? '';
+
+        // ✅ 2. Get LIVE daily status from Attendance collection (Ignores yesterday's scans!)
+        final attDoc = await FirebaseFirestore.instance
+            .collection('Attendance')
+            .doc(todayDate)
+            .collection('PresentStudents')
+            .doc(student.studentId)
+            .get();
+            
+        String status = 'في انتظار الحافلة';
+        if (attDoc.exists && attDoc.data() != null) {
+          final data = attDoc.data() as Map<String, dynamic>;
+          status = data['busStatus'] ?? 'في انتظار الحافلة';
+        }
 
         bool isStopCompleted = widget.isMorningTrip
             ? status == 'في الحافلة'
@@ -457,14 +475,31 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
   Future<void> _handleSuccessfulScan(StudentPinModel student) async {
     String newStatus = widget.isMorningTrip ? 'في الحافلة' : 'في المنزل';
+    
+    // ✅ FIX: Force 'en_US' locale so it always generates standard English numbers (e.g. 2026-05-07)
+    // This prevents the app from creating a new Arabic-numeral document in Firestore.
+    String todayDate = DateFormat('yyyy-MM-dd', 'en_US').format(DateTime.now());
 
-    String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    // 1. Update the Daily Attendance Log (Historical Data)
     await FirebaseFirestore.instance
         .collection('Attendance')
         .doc(todayDate)
         .collection('PresentStudents')
         .doc(student.studentId)
-        .set({'busStatus': newStatus}, SetOptions(merge: true));
+        .set({
+          'busStatus': newStatus,
+          'lastScanTime': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+    // 2. Update the Global Student Profile (Live Tracking Data)
+    // This instantly triggers the Parent's ChildTrackingScreen timeline to update!
+    await FirebaseFirestore.instance
+        .collection('Students')
+        .doc(student.studentId)
+        .update({
+          'busStatus': newStatus,
+          'lastScanTime': FieldValue.serverTimestamp(), 
+        });
 
     if (mounted) {
       setState(() {
@@ -1044,9 +1079,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
     if (isCompleted) {
       buttonText = "اكتملت الرحلة";
     } else if (_tripStatus == 'جارية الآن') {
-      buttonText = _tripNavigationService.currentBatchIndex == 0
-          ? "متابعة الرحلة"
-          : "المجموعة التالية";
+      // ✅ 1. Always show "إكمال الرحلة" if the driver hasn't ended the trip yet
+      buttonText = "إكمال الرحلة";
     } else {
       buttonText = "بدء الرحلة";
     }
@@ -1076,7 +1110,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
           _buildInfoRow(Icons.access_time, "الوقت المتوقع: $_estimatedTime"),
           _buildColoredInfoRow(
             'assets/placeholder.png',
-            "عدد التوقفات: ${_students.length}",
+            // ✅ 2. Show the count of REMAINING students only
+            "عدد التوقفات المتبقية: ${_students.length}",
           ),
           const SizedBox(height: 20),
           _ActionButton(

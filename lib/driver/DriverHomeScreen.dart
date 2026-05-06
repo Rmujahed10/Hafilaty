@@ -74,8 +74,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           now.month != lastUpdatedDate.month ||
           now.year != lastUpdatedDate.year;
 
-      bool isPast3PM = now.hour >= 15;
-
+bool isPast3PM = false; // ⚠️ FOR DEMO: Prevent auto-reset
       if (isNewDay || (isPast3PM && afternoonStatus != 'لم تبدأ')) {
         await FirebaseFirestore.instance
             .collection('Buses')

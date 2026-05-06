@@ -14,13 +14,14 @@ class TripDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIX: Added 'en_US' so it doesn't break on Arabic physical devices!
+    // ✅ Safely format the date for Arabic/English devices
     String todayDate = DateFormat('yyyy-MM-dd', 'en_US').format(DateTime.now());
     
+    // ✅ Accurate Labels matching the real-world flow
     String label1 = isReturnTrip ? "في الحافلة" : "في الانتظار";
-    String label2 = isReturnTrip ? "تم الوصول" : "في الحافلة";
+    String label2 = isReturnTrip ? "في المنزل" : "في الحافلة";
     
-    // استخراج رقم الباص الخاص بالطلاب (مثال: Bus_32438_101 -> 101)
+    // Extract Bus ID suffix (e.g., "Bus_32438_101" -> "101")
     final String busIdSuffix = busId.split('_').last;
 
     return Directionality(
@@ -42,7 +43,7 @@ class TripDetailsScreen extends StatelessWidget {
           ),
         ),
         
-        // ✅ 1. جلب بيانات الطلاب الخاصة بهذا الباص من كولكشن Students (لمعرفة أسمائهم)
+        // 1. Fetch Students assigned to this bus
         body: FutureBuilder<QuerySnapshot>(
           future: FirebaseFirestore.instance
               .collection('Students')
@@ -59,17 +60,17 @@ class TripDetailsScreen extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
             }
 
-            // تخزين بيانات الطلاب (الاسم، ورقم الباص) في Map لسهولة البحث عنهم لاحقاً باستخدام رقمهم (ID)
+            // Map students for quick lookup by ID
             Map<String, Map<String, dynamic>> busStudentsMap = {};
             for (var doc in studentsSnapshot.data!.docs) {
               busStudentsMap[doc.id] = doc.data() as Map<String, dynamic>;
             }
 
-            // ✅ 2. الاستماع المباشر لحالة الحضور من كولكشن Attendance
+            // 2. Listen to LIVE Attendance status
             return StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('Attendance')
-                  .doc(todayDate) // This will now correctly query "2026-05-06"
+                  .doc(todayDate) 
                   .collection('PresentStudents')
                   .snapshots(),
               builder: (context, attendanceSnapshot) {
@@ -83,43 +84,41 @@ class TripDetailsScreen extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
                 }
 
-                // ✅ 3. دمج البيانات: استخراج الطلاب الحاضرين الذين ينتمون لهذا الباص فقط
+                // 3. Merge Data & Calculate Stats
                 List<Map<String, dynamic>> presentBusStudents = [];
-                int count1 = 0;
-                int count2 = 0;
+                int count1 = 0; // Waiting count
+                int count2 = 0; // Completed count
 
                 for (var attendanceDoc in attendanceSnapshot.data!.docs) {
                   String studentId = attendanceDoc.id;
                   
-                  // هل هذا الطالب الحاضر ينتمي لحافلتنا الحالية؟
                   if (busStudentsMap.containsKey(studentId)) {
                     var studentData = busStudentsMap[studentId]!;
                     var attendanceData = attendanceDoc.data() as Map<String, dynamic>;
                     
-                    // تحديد الحالة (busStatus)
-                    String defaultStatus = isReturnTrip ? 'في الحافلة' : 'في الانتظار';
-                    String status = attendanceData['busStatus'] ?? defaultStatus;
+                    // ✅ EXACT STRING MATCHING WITH FIRESTORE
+                    String status = (attendanceData['busStatus'] ?? '').toString().trim();
                     
+                    // Logic: Has the student completed their specific trip phase?
+                    bool isCompleted;
+                    if (isReturnTrip) {
+                      isCompleted = (status == 'في المنزل'); // Evening goal
+                    } else {
+                      isCompleted = (status == 'في الحافلة'); // Morning goal
+                    }
+
+                    if (isCompleted) {
+                      count2++; // Increment green stat
+                    } else {
+                      count1++; // Increment blue stat
+                    }
+
                     presentBusStudents.add({
                       'id': studentId,
                       'name': studentData['StudentName_ar'] ?? studentData['StudentName'] ?? "طالب غير معروف",
                       'status': status,
+                      'isCompleted': isCompleted, // Save flag for UI styling
                     });
-
-                    // حساب الإحصائيات والأرقام
-                    if (isReturnTrip) {
-                      if (status == 'تم الوصول') {
-                        count2++;
-                      } else {
-                        count1++;
-                      }
-                    } else {
-                      if (status == 'في الحافلة') {
-                        count2++;
-                      } else {
-                        count1++;
-                      }
-                    }
                   }
                 }
 
@@ -129,7 +128,13 @@ class TripDetailsScreen extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
                 }
 
-                // ✅ 4. عرض القائمة النهائية والعدادات
+                // ✅ SORTING: Put waiting students at the top, completed at the bottom
+                presentBusStudents.sort((a, b) {
+                  if (a['isCompleted'] == b['isCompleted']) return 0;
+                  return a['isCompleted'] ? 1 : -1;
+                });
+
+                // 4. Build the final UI
                 return Column(
                   children: [
                     _buildStatsHeader(
@@ -145,15 +150,11 @@ class TripDetailsScreen extends StatelessWidget {
                         itemCount: presentBusStudents.length, 
                         itemBuilder: (context, index) {
                           var student = presentBusStudents[index];
-                          String status = student['status'];
-
-                          // نحدد إذا الطالب أكمل المرحلة
-                          bool isCompleted = isReturnTrip ? (status == 'تم الوصول') : (status == 'في الحافلة');
 
                           return _StudentTile(
                             index: index + 1,
                             studentName: student['name'], 
-                            isCompleted: isCompleted, 
+                            isCompleted: student['isCompleted'], 
                           );
                         },
                       ),
@@ -261,7 +262,7 @@ class _StudentTile extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4), 
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4), 
         ],
       ),
       child: ListTile(

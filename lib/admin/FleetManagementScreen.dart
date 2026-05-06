@@ -111,6 +111,7 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
         return Column(
           children: [
             // ✅ NEW: Last Updated Indicator Row
+            // ✅ NEW: Last Updated Indicator Row (Fixed for Overflow)
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: Row(
@@ -118,12 +119,15 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                 children: [
                   const Icon(Icons.update, size: 16, color: Color(0xFF667085)),
                   const SizedBox(width: 6),
-                  Text(
-                    "آخر تحديث لقراءات الحافلة: $lastUpdatedStr",
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF667085),
+                  Expanded( // ✅ ADDED: Expanded to prevent horizontal overflow
+                    child: Text(
+                      "آخر تحديث لقراءات الحافلة: $lastUpdatedStr",
+                      textAlign: TextAlign.center, // ✅ Centers the wrapped text
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF667085),
+                      ),
                     ),
                   ),
                 ],
@@ -242,45 +246,47 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
 
   Widget _buildBottomNav(BuildContext context) {
     return Container(
-      height: 85,
+      // ❌ REMOVED: height: 85, 
       decoration: BoxDecoration(
         color: const Color(0xFFE6E6E6),
         border: Border(
           top: BorderSide(color: Colors.grey.shade300, width: 0.5),
         ),
       ),
-      child: BottomNavigationBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: _kHeaderBlue,
-        unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-        currentIndex: 0, // Home active
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/AdminHome');
-          } else if (index == 1) {
-            Navigator.pushReplacementNamed(context, '/role_home');
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded, size: 28),
-            label: 'الرئيسية',
+      child: SafeArea( // ✅ ADDED: SafeArea
+        child: BottomNavigationBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: _kHeaderBlue,
+          unselectedItemColor: Colors.grey.shade600,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded, size: 28),
-            label: 'الملف الشخصي',
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
           ),
-        ],
+          currentIndex: 0, 
+          onTap: (index) {
+            if (index == 0) {
+              Navigator.pushReplacementNamed(context, '/AdminHome');
+            } else if (index == 1) {
+              Navigator.pushReplacementNamed(context, '/role_home');
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded, size: 28),
+              label: 'الرئيسية',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_rounded, size: 28),
+              label: 'الملف الشخصي',
+            ),
+          ],
+        ),
       ),
     );
   }

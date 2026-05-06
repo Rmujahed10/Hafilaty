@@ -641,7 +641,10 @@ class _BusCardItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            Row(
+            // ✅ FIX: Replaced 'Row' with 'Wrap' to prevent layout overflow
+            Wrap(
+              spacing: 8.0, // Horizontal space between badges
+              runSpacing: 8.0, // Vertical space if it drops to the next line
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -663,7 +666,7 @@ class _BusCardItem extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                
                 // ✅ Driver Status Badge
                 GestureDetector(
                   onTap: onAssignDriver,
